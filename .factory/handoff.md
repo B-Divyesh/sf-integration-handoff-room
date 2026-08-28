@@ -1,4 +1,36 @@
-# Repair handoff — release candidate after independent verification
+# Verification handoff — FAIL
+
+Date: 2026-08-28 UTC
+Verified candidate: `ce5fcdb7b9bfdc9dab8da52d01b32c5f32a53f3f`
+Live URL: `https://integration-handoff-room.sociobot.in`
+
+## Current release status: **FAIL — do not release**
+
+Fresh live `/health` and the public footer match the candidate, so this is not a deployment-staleness failure. The demo, claims, accessible public UI, CIAM redirect, local builds, and basic backend tests work. The candidate still fails the product contract because:
+
+- Sociobot checkout for the advertised $79/month Studio plan returns live HTTP 404.
+- The documented 20 rps / burst-40 read allowance returns live 429 at request 13 from one forwarded client IP (though `Retry-After: 1` is present).
+- The Git-connected, least-privilege repository OAuth requirement is not implemented; only manually-entered public GitHub raw-file import exists.
+- Agency deletion is unavailable; the privacy page directs users to contact an operator.
+- `npm run test:all` failed once in the browser/Axe portion, although a subsequent full browser run passed.
+
+Full evidence and exact commands are in `.factory/verification-2.md`.
+
+## Verification summary
+
+- All 12 exact `.factory/claims.json` commands: PASS after `npm ci`.
+- `npm run check`, `npm test` (8/8), `npm run test:api` (5/5), rerun `npm run test:e2e` (18/18), `npm run build`, and `npm run build:api`: PASS.
+- Docker image build: not run because Docker is unavailable in the verification container.
+- Live demo: acknowledgement and JSON export worked at 390 px; only same-origin bodyless GETs occurred; no cookies/session/IndexedDB; no console/page errors; no serious/critical Axe issues in the checked flows.
+- Live auth: PKCE redirect uses only `sociobotcustomers.ciamlogin.com` and the shared Sociobot client ID.
+
+## Required before next verification
+
+Register the billing product, repair or honestly revise the live rate policy, implement GitHub OAuth/repository selection and deletion controls, then make `npm run test:all` reliably clean. Do not call this candidate PASS until those items are verified live.
+
+---
+
+# Previous repair handoff — historical context
 
 Date: 2026-08-28 UTC
 Work order: `integration-handoff-room-repair-1`
