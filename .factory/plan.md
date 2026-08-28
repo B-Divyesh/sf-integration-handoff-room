@@ -1,6 +1,6 @@
 # Integration Handoff Room — venture plan
 
-Status: planned on 2026-08-28. Builders must read this file, `.factory/brief.json`, `.factory/design.md`, every prior milestone handoff, and the current claims file before starting a milestone. A milestone is not complete until its claims and review/polish loop pass.
+Status: M1 complete on 2026-08-28. Builders must read this file, `.factory/brief.json`, `.factory/design.md`, every prior milestone handoff, and the current claims file before starting a milestone. A milestone is not complete until its claims and review/polish loop pass.
 
 ## Product requirements document
 
@@ -119,7 +119,7 @@ The visual thesis, tokens, component inventory, screen descriptions, accessibili
 
 ### M1 — A tryable release room
 
-**Status:** planned. **Goal:** a stranger can use a one-click, safe sample room to understand and complete the core handoff loop without signing in.
+**Status:** complete — review/polish PASS recorded in `.factory/review-m1.md` and `.factory/polish-m1.md` on 2026-08-28. **Goal:** a stranger can use a one-click, safe sample room to understand and complete the core handoff loop without signing in.
 
 **Routes/screens:** `/` landing; `/demo` and `?demo=1` seeded room; demo room fixture detail, decision rail, checklist, acknowledgement panel, export action; `/privacy`, `/terms`, and designed `/404`. The landing follows the standard information order, uses clear title/metadata, and calls the demo in one click.
 

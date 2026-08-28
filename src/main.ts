@@ -68,6 +68,7 @@ function updateMetadata(page: AppPage): void {
 }
 
 function header(page: AppPage): string {
+  const dayChart = document.documentElement.dataset.theme === "day";
   return `
     <a class="skip-link" href="#main">Skip to main content</a>
     <header class="site-header">
@@ -80,7 +81,7 @@ function header(page: AppPage): string {
         <a href="/#how-it-works">How it works</a>
         <a href="/#pricing">Pricing</a>
         <a href="/privacy"${page === "/privacy" ? ' aria-current="page"' : ""}>Privacy</a>
-        <button class="theme-toggle" type="button" data-action="toggle-theme" aria-pressed="false">Day chart</button>
+        <button class="theme-toggle" type="button" data-action="toggle-theme" aria-pressed="${dayChart}">${dayChart ? "Night chart" : "Day chart"}</button>
       </nav>
     </header>
   `;

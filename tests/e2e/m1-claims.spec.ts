@@ -90,10 +90,12 @@ test("the acknowledgement and export work with keyboard input only", async ({ pa
 });
 
 test("the demo has no serious or critical axe violations", async ({ page }) => {
-  await page.goto("/demo");
-  const results = await new AxeBuilder({ page }).analyze();
-  const seriousOrCritical = results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
-  expect(seriousOrCritical).toEqual([]);
+  for (const route of ["/", "/demo", "/privacy", "/terms", "/unknown-coordinate"]) {
+    await page.goto(route);
+    const results = await new AxeBuilder({ page }).analyze();
+    const seriousOrCritical = results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
+    expect(seriousOrCritical, `${route} has no serious or critical axe violations`).toEqual([]);
+  }
 });
 
 test("the demo stays usable at a 390px viewport", async ({ page }) => {
@@ -102,4 +104,32 @@ test("the demo stays usable at a 390px viewport", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Payment status — paid response" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test("public routes have their own title, heading, and no console errors", async ({ page }) => {
+  const routes = [
+    ["/", "Integration Handoff Room — client API handoffs", "Review an API handoff together."],
+    ["/privacy", "Privacy — Integration Handoff Room", "Your sample stays separate."],
+    ["/terms", "Terms — Integration Handoff Room", "The sample records a review, not a contract."],
+    ["/unknown-coordinate", "Page not found — Integration Handoff Room", "This coordinate is unknown."]
+  ] as const;
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+
+  for (const [route, title, heading] of routes) {
+    await page.goto(route);
+    await expect(page).toHaveTitle(title);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(heading);
+  }
+  expect(consoleErrors).toEqual([]);
+});
+
+test("the day chart preference remains clear after navigation", async ({ page }) => {
+  await page.goto("/demo");
+  await page.getByRole("button", { name: "Day chart" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "day");
+  await page.getByRole("link", { name: "Privacy", exact: true }).first().click();
+  await expect(page.getByRole("button", { name: "Night chart" })).toHaveAttribute("aria-pressed", "true");
 });

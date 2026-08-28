@@ -52,6 +52,10 @@ fn app(state: AppState) -> Router {
             HeaderValue::from_static("nosniff"),
         ))
         .layer(SetResponseHeaderLayer::if_not_present(
+            HeaderName::from_static("permissions-policy"),
+            HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
             HeaderName::from_static("content-security-policy"),
             HeaderValue::from_static("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"),
         ))
@@ -110,7 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         static_dir = %state.static_dir.display(),
         generated_config = "none",
         supplied_config = "PORT, BUILD_SHA optional",
-        "starting API scaffold"
+        "starting integration handoff room service"
     );
 
     let listener = tokio::net::TcpListener::bind(address).await?;
