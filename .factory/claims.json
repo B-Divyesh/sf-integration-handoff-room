@@ -1,0 +1,30 @@
+[
+  {
+    "id": "demo-sample-room",
+    "claim": "Sample data opens a realistic payment API handoff room.",
+    "where": "M1 landing primary action and demo room heading",
+    "test": "npm run test:e2e -- --grep @claim:demo-sample-room",
+    "sandbox": "fresh browser context; open /demo; assert seeded payment-status room and selected sanitized fixture"
+  },
+  {
+    "id": "demo-acknowledgement",
+    "claim": "A reviewer can record a named acknowledgement in the sample room.",
+    "where": "M1 demo acknowledgement plane",
+    "test": "npm run test:e2e -- --grep @claim:demo-acknowledgement",
+    "sandbox": "fresh browser context; complete required sample checklist; type reviewer name; assert dated acknowledgement receipt"
+  },
+  {
+    "id": "demo-handover-export",
+    "claim": "Exports a handover JSON file with the selected fixture, decisions, checklist, and acknowledgement.",
+    "where": "M1 demo export control",
+    "test": "npm run test:e2e -- --grep @claim:demo-handover-export",
+    "sandbox": "fresh browser context; acknowledge sample room; download and parse JSON; assert the four sections and reviewer name"
+  },
+  {
+    "id": "demo-isolated",
+    "claim": "Demo changes stay in a separate browser storage namespace.",
+    "where": "M1 demo banner",
+    "test": "npm run test:e2e -- --grep @claim:demo-isolated",
+    "sandbox": "fresh browser context; mutate and reset demo; assert storage keys use demo: prefix and request log has no cross-origin requests"
+  }
+]
