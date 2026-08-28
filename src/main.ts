@@ -504,5 +504,7 @@ window.addEventListener("popstate", () => {
   render();
 });
 
-if (window.location.pathname.startsWith("/rooms") || window.location.pathname === "/auth/callback") await initializeIdentity();
 render();
+if (window.location.pathname.startsWith("/rooms") || window.location.pathname === "/auth/callback") {
+  void initializeIdentity().then(() => render());
+}
