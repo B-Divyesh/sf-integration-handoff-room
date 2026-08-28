@@ -1,4 +1,4 @@
-export type AppPage = "/" | "/demo" | "/privacy" | "/terms" | "/rooms" | "/rooms/new" | "/room" | "/review" | "/settings/billing" | "/auth/callback" | "/404";
+export type AppPage = "/" | "/demo" | "/privacy" | "/terms" | "/rooms" | "/rooms/new" | "/room" | "/review" | "/settings/billing" | "/settings/repositories" | "/settings/data" | "/auth/callback" | "/404";
 
 export interface RouteMetadata {
   title: string;
@@ -49,8 +49,18 @@ const routeMetadata: Record<AppPage, RouteMetadata> = {
   },
   "/settings/billing": {
     title: "Billing — Integration Handoff Room",
-    description: "Start or restore the Studio subscription through Sociobot hosted checkout.",
+    description: "Check whether the Studio subscription checkout is available through Sociobot.",
     canonicalPath: "/settings/billing"
+  },
+  "/settings/repositories": {
+    title: "Repositories — Integration Handoff Room",
+    description: "Connect GitHub with read-only selected-repository access for an API handoff room.",
+    canonicalPath: "/settings/repositories"
+  },
+  "/settings/data": {
+    title: "Data controls — Integration Handoff Room",
+    description: "Export rooms or permanently delete an agency workspace and its connected repositories.",
+    canonicalPath: "/settings/data"
   },
   "/auth/callback": {
     title: "Signing in — Integration Handoff Room",
@@ -65,7 +75,7 @@ const routeMetadata: Record<AppPage, RouteMetadata> = {
 };
 
 export function pageForPath(pathname: string): AppPage {
-  if (pathname === "/" || pathname === "/demo" || pathname === "/privacy" || pathname === "/terms" || pathname === "/rooms" || pathname === "/rooms/new" || pathname === "/settings/billing" || pathname === "/auth/callback") {
+  if (pathname === "/" || pathname === "/demo" || pathname === "/privacy" || pathname === "/terms" || pathname === "/rooms" || pathname === "/rooms/new" || pathname === "/settings/billing" || pathname === "/settings/repositories" || pathname === "/settings/data" || pathname === "/auth/callback") {
     return pathname;
   }
 

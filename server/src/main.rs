@@ -2,13 +2,15 @@
 
 use axum::{
     body::Body,
-    extract::{OriginalUri, Path, State},
+    extract::{OriginalUri, Path, Query, State},
     http::{header, HeaderMap, HeaderName, HeaderValue, Method, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
+use aes_gcm::{aead::{Aead, KeyInit}, Aes256Gcm, Nonce};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use rand::{distr::Alphanumeric, Rng};
 use reqwest::Client;
@@ -44,6 +46,21 @@ struct AppState {
     auth: AuthMode,
     http: Client,
     public_origin: String,
+    billing: BillingContract,
+    github: GitHubApp,
+    github_token_key: [u8; 32],
+}
+
+#[derive(Clone)]
+struct BillingContract {
+    checkout_url: String,
+    registered: bool,
+}
+
+#[derive(Clone)]
+struct GitHubApp {
+    client_id: Option<String>,
+    client_secret: Option<String>,
 }
 
 #[derive(Clone)]
@@ -115,8 +132,9 @@ struct PublicConfig {
     tenant_subdomain: String,
     client_id: String,
     authority: String,
-    checkout_url: &'static str,
-    studio_price: &'static str,
+    checkout_url: Option<String>,
+    billing_registered: bool,
+    studio_price: String,
 }
 #[derive(Deserialize)]
 struct BootstrapRequest {
@@ -124,11 +142,43 @@ struct BootstrapRequest {
 }
 #[derive(Deserialize)]
 struct ImportRequest {
-    owner: String,
+    connection_id: String,
     repository: String,
     #[serde(default = "default_ref")]
     git_ref: String,
     path: String,
+}
+#[derive(Deserialize)]
+struct GitHubCallback {
+    code: String,
+    state: String,
+}
+#[derive(Deserialize)]
+struct RepositorySelection {
+    connection_id: String,
+    repository: String,
+}
+#[derive(Deserialize)]
+struct DeleteAgencyRequest {
+    confirmation: String,
+}
+#[derive(Deserialize)]
+struct GitHubTokenResponse {
+    access_token: String,
+}
+#[derive(Deserialize)]
+struct GitHubUser {
+    login: String,
+}
+#[derive(Deserialize)]
+struct GitHubRepository {
+    full_name: String,
+    private: bool,
+}
+#[derive(Deserialize)]
+struct GitHubContent {
+    content: String,
+    encoding: String,
 }
 #[derive(Deserialize)]
 struct RedactRequest {
@@ -259,6 +309,12 @@ fn app(state: AppState) -> Router {
     let limited = Router::new()
         .route("/api/config", get(config))
         .route("/api/me/bootstrap", post(bootstrap))
+        .route("/api/agency", axum::routing::delete(delete_agency))
+        .route("/api/github/connect", get(github_connect))
+        .route("/api/github/callback", get(github_callback))
+        .route("/api/github/repositories", get(github_repositories))
+        .route("/api/github/repositories/selection", post(select_github_repository))
+        .route("/api/github/connections/{connection_id}", axum::routing::delete(delete_github_connection))
         .route("/api/fixtures/import", post(import_fixture))
         .route("/api/fixtures/redact", post(redact_fixture))
         .route("/api/rooms", get(list_rooms).post(create_room))
@@ -292,9 +348,9 @@ async fn rate_limit(State(state): State<AppState>, request: Request<Body>, next:
         .filter(|v| !v.is_empty())
         .unwrap_or("direct");
     let write = request.method() != Method::GET && request.method() != Method::HEAD;
-    // The factory may run three replicas. Per-replica ceilings keep the
-    // combined service below the published 20/s, burst-40 client allowance.
-    let (rate, burst) = if write { (1.0, 3.0) } else { (6.0, 12.0) };
+    // The published contract is enforced per client at this service boundary.
+    // A distributed deployment must use a shared limiter before adding replicas.
+    let (rate, burst) = if write { (5.0, 10.0) } else { (20.0, 40.0) };
     let key = format!("{ip}:{}", if write { "write" } else { "read" });
     let allowed = {
         let mut buckets = match state.limiter.lock() {
@@ -413,8 +469,9 @@ async fn config(State(state): State<AppState>) -> Json<PublicConfig> {
         tenant_subdomain: tenant_subdomain.clone(),
         client_id: env::var("ENTRA_CLIENT_ID").unwrap_or_else(|_| CLIENT_ID.into()),
         authority: format!("https://{tenant_subdomain}.ciamlogin.com/{tenant_id}/"),
-        checkout_url: CHECKOUT_URL,
-        studio_price: "$79 USD per agency each month",
+        checkout_url: state.billing.registered.then(|| state.billing.checkout_url.clone()),
+        billing_registered: state.billing.registered,
+        studio_price: "$79 USD per agency each month".into(),
     })
 }
 
@@ -487,6 +544,128 @@ async fn bootstrap(
     (StatusCode::CREATED, Json(json!({"agency":{"id":agency_id,"name":agency_name,"role":"owner"},"member":actor.name}))).into_response()
 }
 
+async fn delete_agency(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<DeleteAgencyRequest>,
+) -> Response {
+    if body.confirmation.trim() != "DELETE" {
+        return err(StatusCode::UNPROCESSABLE_ENTITY, "Type DELETE to permanently remove this agency workspace.");
+    }
+    let (_, agency_id) = match agency_for(&headers, &state).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let db = match state.db.lock() {
+        Ok(value) => value,
+        Err(_) => return err(StatusCode::SERVICE_UNAVAILABLE, "The room database is unavailable."),
+    };
+    // Foreign-key cascades remove rooms, review invitations, questions,
+    // acknowledgements, OAuth state, encrypted GitHub tokens, and selections.
+    if db.execute("DELETE FROM agencies WHERE id=?1", [agency_id]).unwrap_or(0) != 1 {
+        return err(StatusCode::NOT_FOUND, "This agency workspace no longer exists.");
+    }
+    Json(json!({"deleted":true})).into_response()
+}
+
+fn github_unavailable() -> Response {
+    err(StatusCode::SERVICE_UNAVAILABLE, "GitHub connection is not configured. An operator must supply the GitHub App OAuth credentials before a repository can be connected.")
+}
+
+fn encrypt_token(key: &[u8; 32], token: &str) -> Result<String, String> {
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| "GitHub token encryption could not start.")?;
+    let mut nonce = [0u8; 12];
+    rand::rng().fill(&mut nonce);
+    let encrypted = cipher.encrypt(Nonce::from_slice(&nonce), token.as_bytes()).map_err(|_| "GitHub token encryption failed.")?;
+    Ok(format!("{}.{}", URL_SAFE_NO_PAD.encode(nonce), URL_SAFE_NO_PAD.encode(encrypted)))
+}
+
+fn decrypt_token(key: &[u8; 32], ciphertext: &str) -> Result<String, String> {
+    let (nonce, encrypted) = ciphertext.split_once('.').ok_or("Saved GitHub connection is invalid.")?;
+    let nonce = URL_SAFE_NO_PAD.decode(nonce).map_err(|_| "Saved GitHub connection is invalid.")?;
+    let encrypted = URL_SAFE_NO_PAD.decode(encrypted).map_err(|_| "Saved GitHub connection is invalid.")?;
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| "Saved GitHub connection is invalid.")?;
+    let clear = cipher.decrypt(Nonce::from_slice(&nonce), encrypted.as_ref()).map_err(|_| "Saved GitHub connection can no longer be read. Reconnect GitHub.")?;
+    String::from_utf8(clear).map_err(|_| "Saved GitHub connection is invalid.".into())
+}
+
+async fn github_connect(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let (_, agency_id) = match agency_for(&headers, &state).await { Ok(value) => value, Err(response) => return response };
+    let client_id = match state.github.client_id.as_ref() { Some(value) if state.github.client_secret.is_some() => value, _ => return github_unavailable() };
+    let state_token = random_token();
+    let db = match state.db.lock() { Ok(value) => value, Err(_) => return err(StatusCode::SERVICE_UNAVAILABLE, "The room database is unavailable.") };
+    if db.execute("INSERT INTO github_oauth_states(state,agency_id,expires_at) VALUES(?1,?2,?3)", params![state_token, agency_id, now() + 600]).is_err() {
+        return err(StatusCode::INTERNAL_SERVER_ERROR, "GitHub connection could not be started.");
+    }
+    let redirect = format!("{}/api/github/callback", state.public_origin.trim_end_matches('/'));
+    let authorization_url = format!("https://github.com/login/oauth/authorize?client_id={}&redirect_uri={}&state={}", client_id, url_encode(&redirect), state_token);
+    Json(json!({"authorization_url":authorization_url,"permission":"GitHub App consent limits this connection to the repositories selected on GitHub. The app requests read-only repository contents."})).into_response()
+}
+
+fn url_encode(value: &str) -> String {
+    value.bytes().map(|byte| match byte {
+        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (byte as char).to_string(),
+        _ => format!("%{:02X}", byte),
+    }).collect()
+}
+
+async fn github_callback(State(state): State<AppState>, Query(query): Query<GitHubCallback>) -> Response {
+    let client_id = match state.github.client_id.as_ref() { Some(value) if state.github.client_secret.is_some() => value, _ => return github_unavailable() };
+    let agency_id = {
+        let db = match state.db.lock() { Ok(value) => value, Err(_) => return err(StatusCode::SERVICE_UNAVAILABLE, "The room database is unavailable.") };
+        let agency: Option<String> = db.query_row("SELECT agency_id FROM github_oauth_states WHERE state=?1 AND expires_at>?2", params![query.state, now()], |row| row.get(0)).optional().unwrap_or(None);
+        let _ = db.execute("DELETE FROM github_oauth_states WHERE state=?1", [query.state]);
+        match agency { Some(value) => value, None => return err(StatusCode::BAD_REQUEST, "This GitHub connection request expired or was already used.") }
+    };
+    let token_response = match state.http.post("https://github.com/login/oauth/access_token")
+        .header(header::ACCEPT, "application/json")
+        .json(&json!({"client_id":client_id,"client_secret":state.github.client_secret.as_ref().expect("checked"),"code":query.code}))
+        .send().await {
+            Ok(response) if response.status().is_success() => response,
+            _ => return err(StatusCode::BAD_GATEWAY, "GitHub did not complete the connection. Return to repository settings and try again."),
+        };
+    let token = match token_response.json::<GitHubTokenResponse>().await { Ok(value) if !value.access_token.is_empty() => value.access_token, _ => return err(StatusCode::BAD_GATEWAY, "GitHub returned an invalid connection response.") };
+    let user = match state.http.get("https://api.github.com/user").header(header::USER_AGENT, "integration-handoff-room/1.0").header(header::AUTHORIZATION, format!("Bearer {token}")).send().await {
+        Ok(response) if response.status().is_success() => response.json::<GitHubUser>().await.ok(), _ => None,
+    };
+    let user = match user { Some(value) => value, None => return err(StatusCode::BAD_GATEWAY, "GitHub could not identify this connection.") };
+    let repositories = match state.http.get("https://api.github.com/user/repos?per_page=100&sort=full_name")
+        .header(header::USER_AGENT, "integration-handoff-room/1.0").header(header::AUTHORIZATION, format!("Bearer {token}")).send().await {
+            Ok(response) if response.status().is_success() => response.json::<Vec<GitHubRepository>>().await.unwrap_or_default(),
+            _ => Vec::new(),
+        };
+    let encrypted = match encrypt_token(&state.github_token_key, &token) { Ok(value) => value, Err(message) => return err(StatusCode::INTERNAL_SERVER_ERROR, &message) };
+    let db = match state.db.lock() { Ok(value) => value, Err(_) => return err(StatusCode::SERVICE_UNAVAILABLE, "The room database is unavailable.") };
+    let connection_id = Uuid::new_v4().to_string();
+    let transaction = match db.unchecked_transaction() { Ok(value) => value, Err(_) => return err(StatusCode::INTERNAL_SERVER_ERROR, "GitHub connection could not be saved.") };
+    let saved = transaction.execute("INSERT INTO github_connections(id,agency_id,github_login,access_token_ciphertext) VALUES(?1,?2,?3,?4)", params![connection_id,agency_id,user.login,encrypted]).is_ok()
+        && repositories.iter().all(|repository| transaction.execute("INSERT INTO github_repositories(connection_id,full_name,private) VALUES(?1,?2,?3)", params![connection_id,repository.full_name,repository.private as i64]).is_ok())
+        && transaction.commit().is_ok();
+    if !saved { return err(StatusCode::INTERNAL_SERVER_ERROR, "GitHub connection could not be saved."); }
+    Response::builder().status(StatusCode::SEE_OTHER).header(header::LOCATION, "/settings/repositories?github=connected").body(Body::empty()).unwrap()
+}
+
+async fn github_repositories(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let (_, agency_id) = match agency_for(&headers, &state).await { Ok(value) => value, Err(response) => return response };
+    let db = match state.db.lock() { Ok(value) => value, Err(_) => return err(StatusCode::SERVICE_UNAVAILABLE, "The room database is unavailable.") };
+    let mut statement = match db.prepare("SELECT c.id,c.github_login,r.full_name,r.private,r.selected FROM github_connections c JOIN github_repositories r ON r.connection_id=c.id WHERE c.agency_id=?1 ORDER BY c.created_at DESC,r.full_name") { Ok(value) => value, Err(_) => return err(StatusCode::INTERNAL_SERVER_ERROR, "GitHub repositories could not be read.") };
+    let repositories: Vec<Value> = statement.query_map([agency_id], |row| Ok(json!({"connection_id":row.get::<_,String>(0)?,"github_login":row.get::<_,String>(1)?,"full_name":row.get::<_,String>(2)?,"private":row.get::<_,i64>(3)? == 1,"selected":row.get::<_,i64>(4)? == 1}))).map(|rows| rows.filter_map(Result::ok).collect()).unwrap_or_default();
+    Json(json!({"repositories":repositories})).into_response()
+}
+
+async fn select_github_repository(State(state): State<AppState>, headers: HeaderMap, Json(body): Json<RepositorySelection>) -> Response {
+    let (_, agency_id) = match agency_for(&headers, &state).await { Ok(value) => value, Err(response) => return response };
+    let db = match state.db.lock() { Ok(value) => value, Err(_) => return err(StatusCode::SERVICE_UNAVAILABLE, "The room database is unavailable.") };
+    let changed = db.execute("UPDATE github_repositories SET selected=1 WHERE connection_id=?1 AND full_name=?2 AND EXISTS(SELECT 1 FROM github_connections WHERE id=?1 AND agency_id=?3)", params![body.connection_id,body.repository,agency_id]).unwrap_or(0);
+    if changed == 1 { Json(json!({"selected":true})).into_response() } else { err(StatusCode::NOT_FOUND, "That repository is not available through this agency connection.") }
+}
+
+async fn delete_github_connection(State(state): State<AppState>, headers: HeaderMap, Path(connection_id): Path<String>) -> Response {
+    let (_, agency_id) = match agency_for(&headers, &state).await { Ok(value) => value, Err(response) => return response };
+    let db = match state.db.lock() { Ok(value) => value, Err(_) => return err(StatusCode::SERVICE_UNAVAILABLE, "The room database is unavailable.") };
+    if db.execute("DELETE FROM github_connections WHERE id=?1 AND agency_id=?2", params![connection_id,agency_id]).unwrap_or(0) == 1 { Json(json!({"deleted":true})).into_response() } else { err(StatusCode::NOT_FOUND, "That GitHub connection does not exist in this agency.") }
+}
+
 async fn agency_for(headers: &HeaderMap, state: &AppState) -> Result<(Actor, String), Response> {
     let actor = actor(headers, state).await?;
     let db = state.db.lock().map_err(|_| {
@@ -528,42 +707,30 @@ async fn import_fixture(
     headers: HeaderMap,
     Json(body): Json<ImportRequest>,
 ) -> Response {
-    if let Err(r) = agency_for(&headers, &state).await {
-        return r;
-    }
-    if !safe_git(&body.owner)
+    let (_, agency_id) = match agency_for(&headers, &state).await { Ok(value) => value, Err(response) => return response };
+    if !safe_git(&body.connection_id)
         || !safe_git(&body.repository)
         || !safe_git(&body.git_ref)
         || !safe_git(&body.path)
     {
-        return err(StatusCode::UNPROCESSABLE_ENTITY, "Use a GitHub owner, repository, ref, and JSON path without spaces or parent-directory segments.");
+        return err(StatusCode::UNPROCESSABLE_ENTITY, "Choose a connected repository, ref, and JSON path without spaces or parent-directory segments.");
     }
-    let url = format!(
-        "https://raw.githubusercontent.com/{}/{}/{}/{}",
-        body.owner, body.repository, body.git_ref, body.path
-    );
-    let response =
-        match state
-            .http
-            .get(url)
-            .header(header::USER_AGENT, "integration-handoff-room/0.2")
-            .send()
-            .await
-        {
-            Ok(v) if v.status().is_success() => v,
-            _ => return err(
-                StatusCode::BAD_GATEWAY,
-                "GitHub did not return that JSON file. Check the public repository, ref, and path.",
-            ),
-        };
-    let bytes = match response.bytes().await {
-        Ok(v) if v.len() <= 256 * 1024 => v,
-        _ => {
-            return err(
-                StatusCode::PAYLOAD_TOO_LARGE,
-                "The selected fixture must be JSON and no larger than 256 KB.",
-            )
-        }
+    let ciphertext = {
+        let db = match state.db.lock() { Ok(value) => value, Err(_) => return err(StatusCode::SERVICE_UNAVAILABLE, "The room database is unavailable.") };
+        db.query_row("SELECT c.access_token_ciphertext FROM github_connections c JOIN github_repositories r ON r.connection_id=c.id WHERE c.id=?1 AND r.full_name=?2 AND r.selected=1 AND c.agency_id=?3", params![body.connection_id,body.repository,agency_id], |row| row.get::<_, String>(0)).optional().unwrap_or(None)
+    };
+    let ciphertext = match ciphertext { Some(value) => value, None => return err(StatusCode::FORBIDDEN, "Select this repository in GitHub settings before importing a fixture.") };
+    let token = match decrypt_token(&state.github_token_key, &ciphertext) { Ok(value) => value, Err(message) => return err(StatusCode::UNAUTHORIZED, &message) };
+    let url = format!("https://api.github.com/repos/{}/contents/{}?ref={}", body.repository, body.path, body.git_ref);
+    let content = match state.http.get(url).header(header::USER_AGENT, "integration-handoff-room/1.0").header(header::AUTHORIZATION, format!("Bearer {token}")).send().await {
+        Ok(response) if response.status().is_success() => response.json::<GitHubContent>().await.ok(),
+        _ => None,
+    };
+    let content = match content { Some(value) if value.encoding == "base64" => value, _ => return err(StatusCode::BAD_GATEWAY, "GitHub did not return the selected JSON file. Check the selected repository, ref, and path.") };
+    let bytes = match URL_SAFE_NO_PAD.decode(content.content.replace(['\n', '\r'], "")) {
+        Ok(value) if value.len() <= 256 * 1024 => value,
+        Ok(_) => return err(StatusCode::PAYLOAD_TOO_LARGE, "The selected fixture must be JSON and no larger than 256 KB."),
+        Err(_) => return err(StatusCode::UNPROCESSABLE_ENTITY, "The selected repository file could not be decoded."),
     };
     let fixture = match serde_json::from_slice(&bytes) {
         Ok(v) => v,
@@ -575,7 +742,7 @@ async fn import_fixture(
         }
     };
     let redacted = sanitize(fixture);
-    Json(json!({"repository":format!("{}/{}",body.owner,body.repository),"release_ref":body.git_ref,"path":body.path,"fixture":redacted.fixture,"findings":redacted.findings})).into_response()
+    Json(json!({"connection_id":body.connection_id,"repository":body.repository,"release_ref":body.git_ref,"path":body.path,"fixture":redacted.fixture,"findings":redacted.findings})).into_response()
 }
 
 async fn redact_fixture(
@@ -1073,6 +1240,8 @@ fn browser_route(path: &str) -> bool {
             | "/rooms"
             | "/rooms/new"
             | "/settings/billing"
+            | "/settings/repositories"
+            | "/settings/data"
             | "/auth/callback"
     ) || path.starts_with("/rooms/")
         || path.starts_with("/review/")
@@ -1135,6 +1304,36 @@ fn data_dir() -> (PathBuf, &'static str) {
         None => (PathBuf::from("./data"), "generated default"),
     }
 }
+fn github_token_key(path: &FilePath) -> Result<([u8; 32], &'static str), Box<dyn std::error::Error>> {
+    if let Ok(value) = env::var("GITHUB_TOKEN_ENCRYPTION_KEY") {
+        let bytes = URL_SAFE_NO_PAD.decode(value)?;
+        let key: [u8; 32] = bytes.try_into().map_err(|_| "GITHUB_TOKEN_ENCRYPTION_KEY must decode to 32 bytes")?;
+        return Ok((key, "supplied"));
+    }
+    fs::create_dir_all(path)?;
+    let key_path = path.join("github-token-key.bin");
+    let bytes = match fs::read(&key_path) {
+        Ok(value) if value.len() == 32 => value,
+        _ => {
+            let mut value = [0u8; 32];
+            rand::rng().fill(&mut value);
+            fs::write(&key_path, value)?;
+            value.to_vec()
+        }
+    };
+    let key: [u8; 32] = bytes.try_into().map_err(|_| "generated GitHub key is invalid")?;
+    Ok((key, "generated"))
+}
+async fn billing_contract() -> BillingContract {
+    // Checkout is advertised only after the real Sociobot product endpoint
+    // responds as a hosted checkout (a redirect or success), never from a
+    // front-end assumption or an operator-provided boolean.
+    let registered = match Client::builder().redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(5)).build() {
+        Ok(client) => client.get(CHECKOUT_URL).send().await.map(|response| response.status().is_success() || response.status().is_redirection()).unwrap_or(false),
+        Err(_) => false,
+    };
+    BillingContract { checkout_url: CHECKOUT_URL.into(), registered }
+}
 fn open_db(path: &FilePath) -> Result<Connection, Box<dyn std::error::Error>> {
     fs::create_dir_all(path)?;
     let db = Connection::open(path.join("handoff-room.sqlite3"))?;
@@ -1178,6 +1377,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let subdomain = env::var("ENTRA_TENANT_SUBDOMAIN").unwrap_or_else(|_| TENANT_SUBDOMAIN.into());
     let client_id = env::var("ENTRA_CLIENT_ID").unwrap_or_else(|_| CLIENT_ID.into());
     let http = Client::builder().timeout(Duration::from_secs(12)).build()?;
+    let billing = billing_contract().await;
+    let (github_token_key, github_token_key_source) = github_token_key(&data_dir)?;
     let auth = AuthMode::Entra(EntraVerifier {
         tenant_id: tenant_id.clone(),
         client_id,
@@ -1196,8 +1397,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         http,
         public_origin: env::var("PUBLIC_ORIGIN")
             .unwrap_or_else(|_| "https://integration-handoff-room.sociobot.in".into()),
+        billing,
+        github: GitHubApp {
+            client_id: env::var("GITHUB_APP_CLIENT_ID").ok(),
+            client_secret: env::var("GITHUB_APP_CLIENT_SECRET").ok(),
+        },
+        github_token_key,
     };
-    info!(port,build_sha=%state.build_sha,static_dir=%state.static_dir.display(),data_dir=%data_dir.display(),data_config=data_source,auth_config="Sociobot Entra defaults with optional env overrides","starting integration handoff room service");
+    info!(port,build_sha=%state.build_sha,static_dir=%state.static_dir.display(),data_dir=%data_dir.display(),data_config=data_source,github_token_key=github_token_key_source,billing_registered=state.billing.registered,auth_config="Sociobot Entra defaults with optional env overrides","starting integration handoff room service");
     let listener = tokio::net::TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], port))).await?;
     axum::serve(
         listener,
@@ -1229,6 +1436,9 @@ mod tests {
                 auth: AuthMode::Test,
                 http: Client::new(),
                 public_origin: "https://example.test".into(),
+                billing: BillingContract { checkout_url: CHECKOUT_URL.into(), registered: false },
+                github: GitHubApp { client_id: None, client_secret: None },
+                github_token_key: [7; 32],
             },
             root,
         )
@@ -1271,8 +1481,7 @@ mod tests {
     async fn claim_api_rate_limit_uses_forwarded_ip_and_retry_after() {
         let (state, root) = state();
         let router = app(state);
-        let mut limited = None;
-        for _ in 0..45 {
+        for request_number in 1..=40 {
             let response = router
                 .clone()
                 .oneshot(
@@ -1283,13 +1492,45 @@ mod tests {
                 )
                 .await
                 .unwrap();
-            if response.status() == StatusCode::TOO_MANY_REQUESTS {
-                limited = Some(response);
-                break;
-            }
+            assert_eq!(response.status(), StatusCode::OK, "request {request_number} must fit in the documented burst of 40");
         }
-        let response = limited.expect("burst allowance must be enforced");
+        let response = router.clone().oneshot(Request::get("/demo").header("x-forwarded-for", "203.0.113.8, 10.0.0.2").body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS, "request 41 must be limited");
         assert_eq!(response.headers().get(header::RETRY_AFTER).unwrap(), "1");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn billing_contract_hides_checkout_until_registration_is_verified() {
+        let (state, root) = state();
+        let response = app(state).oneshot(Request::get("/api/config").body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let config: Value = serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap();
+        assert_eq!(config["billing_registered"], false);
+        assert!(config["checkout_url"].is_null());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn agency_deletion_revokes_rooms_reviews_and_encrypted_github_connection() {
+        let (state, root) = state();
+        let router = app(state.clone());
+        assert_eq!(request(router.clone(), Method::POST, "/api/me/bootstrap", Some("owner-delete"), json!({"agency_name":"Delete Works"})).await.status(), StatusCode::CREATED);
+        let db = state.db.lock().unwrap();
+        let agency_id: String = db.query_row("SELECT id FROM agencies", [], |row| row.get(0)).unwrap();
+        let room_id = "room-delete";
+        db.execute("INSERT INTO rooms(id,agency_id,title,client_name,repository,release_ref,fixture_json,redaction_json,checklist_json,decisions_json) VALUES(?1,?2,'Delete room','Client','owner/repo','v1','{}','[]','[]','[]')", params![room_id,agency_id]).unwrap();
+        db.execute("INSERT INTO review_invites(id,room_id,token_hash,expires_at) VALUES('invite-delete',?1,'hash-delete',?2)", params![room_id,now()+100]).unwrap();
+        let encrypted = encrypt_token(&state.github_token_key, "github-secret-token").unwrap();
+        db.execute("INSERT INTO github_connections(id,agency_id,github_login,access_token_ciphertext) VALUES('connection-delete',?1,'owner',?2)", params![agency_id,encrypted]).unwrap();
+        drop(db);
+        let deleted = request(router.clone(), Method::DELETE, "/api/agency", Some("owner-delete"), json!({"confirmation":"DELETE"})).await;
+        assert_eq!(deleted.status(), StatusCode::OK);
+        let db = state.db.lock().unwrap();
+        for table in ["agencies", "rooms", "review_invites", "github_connections"] {
+            let count: i64 = db.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0)).unwrap();
+            assert_eq!(count, 0, "{table} must be removed with the agency");
+        }
         fs::remove_dir_all(root).unwrap();
     }
 

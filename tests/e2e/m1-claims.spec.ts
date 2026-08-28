@@ -92,20 +92,20 @@ test("@claim:fixture-sanitized prepared sample contains no secret-like values", 
   await expect(page.getByText("No secret-like values found in this prepared sample.")).toBeVisible();
 });
 
-test("@claim:studio-hosted-checkout Studio uses Sociobot hosted checkout", async ({ page }) => {
+test("@claim:studio-hosted-checkout Studio never fakes checkout when Sociobot registration is unavailable", async ({ page }) => {
   await page.goto("/settings/billing");
-  await expect(page.getByRole("link", { name: "Open hosted checkout" })).toHaveAttribute("href", "https://api.sociobot.in/api/v1/products/integration-handoff-room/checkout");
-  await expect(page.getByText("$79 USD per agency each month")).toBeVisible();
+  await expect(page.getByText("Studio checkout is not available yet because Sociobot has not registered the subscription product.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open hosted checkout" })).toHaveCount(0);
 });
 
-test("@claim:agency-room-browser the real room browser flow imports, redacts, saves, and reloads", async ({ page }) => {
+test("@claim:agency-room-browser the real room browser flow imports only a selected GitHub repository, redacts, saves, and reloads", async ({ page }) => {
   const room = { id: "room-1", title: "Payment handoff", client_name: "Northstar", repository: "atlas/payments", release_ref: "v1.2.0", revision: 1, fixture: { authorization: "[REDACTED]", status: "paid" }, redaction_findings: ["Removed a secret-like value at $.authorization."], decisions: [{ text: "Retry stops after three checks.", owner: "Dara Singh", version: 1 }], checklist: [], questions: [], acknowledgement: null };
+  await page.route("**/api/github/repositories", async (route) => route.fulfill({ json: { repositories: [{ connection_id: "connection-1", full_name: "atlas/payments", selected: true, private: true, github_login: "atlas" }] } }));
   await page.route("**/api/fixtures/import", async (route) => route.fulfill({ json: { repository: "atlas/payments", release_ref: "v1.2.0", path: "fixtures/payment.json", fixture: room.fixture, findings: room.redaction_findings } }));
   await page.route("**/api/rooms", async (route) => route.fulfill({ status: 201, json: room }));
   await page.route("**/api/rooms/room-1", async (route) => route.fulfill({ json: room }));
   await page.goto("/rooms/new");
-  await page.getByLabel("Owner", { exact: true }).fill("atlas");
-  await page.getByLabel("Repository").fill("payments");
+  await page.getByLabel("Selected repository").selectOption("atlas/payments");
   await page.getByLabel("Release ref").fill("v1.2.0");
   await page.getByLabel("JSON file path").fill("fixtures/payment.json");
   await page.getByRole("button", { name: "Import and redact fixture" }).click();
@@ -119,6 +119,27 @@ test("@claim:agency-room-browser the real room browser flow imports, redacts, sa
   await expect(page).toHaveURL(/\/rooms\/room-1$/);
   await expect(page.getByRole("heading", { name: "Payment handoff" })).toBeVisible();
   await expect(page.getByText("Removed a secret-like value at $.authorization.")).toBeVisible();
+});
+
+test("@claim:github-selected-repository GitHub import has no raw owner/repository fields and requires a selected connection", async ({ page }) => {
+  await page.route("**/api/github/repositories", async (route) => route.fulfill({ json: { repositories: [] } }));
+  await page.goto("/rooms/new");
+  await expect(page.getByLabel("Owner", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Selected repository")).toHaveValue("");
+  await expect(page.getByRole("link", { name: "Connect GitHub and select it" })).toBeVisible();
+});
+
+test("@claim:agency-deletion signed-in agencies can permanently delete their workspace", async ({ page }) => {
+  await page.route("**/api/agency", async (route) => {
+    expect(route.request().method()).toBe("DELETE");
+    expect(route.request().postDataJSON()).toEqual({ confirmation: "DELETE" });
+    await route.fulfill({ json: { deleted: true } });
+  });
+  await page.goto("/settings/data");
+  await page.getByLabel("Type DELETE to confirm").fill("DELETE");
+  await page.getByRole("button", { name: "Delete agency workspace" }).click();
+  await expect(page).toHaveURL(/\/rooms$/);
+  await expect(page.getByText("Agency workspace deleted.")).toBeVisible();
 });
 
 test("@claim:client-review-workflow a client can ask a question and acknowledge the scoped revision", async ({ page }) => {

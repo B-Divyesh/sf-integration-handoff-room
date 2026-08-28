@@ -31,6 +31,7 @@ let shouldFocusHeading = false;
 let currentRoom: Record<string, unknown> | undefined;
 let importedFixture: Record<string, unknown> | undefined;
 let importedFindings: string[] = [];
+let selectedConnectionId = "";
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (character) => {
@@ -130,7 +131,7 @@ function landing(): string {
           <p class="hero__lede">For agency teams handing an integration to a client, keep the sample, decisions, owners, and review in one room.</p>
           <div class="hero__actions"><a class="button button--primary" href="/demo">Try it with sample data</a><a class="button button--secondary" href="/rooms">Create a real room</a><span class="action-note">The sample opens now. Real rooms use sign-in.</span></div>
           <ul class="plain-facts" aria-label="Product facts">
-            <li>Sample changes stay in a separate browser space.</li><li>The sample sends no fixture data.</li><li>Studio costs $79/month per agency.</li>
+            <li>Sample changes stay in a separate browser space.</li><li>The sample sends no fixture data.</li><li>Billing shows checkout only when Sociobot has registered it.</li>
           </ul>
         </div>
         <div class="hero__atlas">${orbitAtlas("The fixture is the center point. Decisions and acknowledgement orbit it as the handoff is reviewed.")}</div>
@@ -156,8 +157,8 @@ function landing(): string {
         <p>The sample sends no fixture or review data. Its acknowledgement records a review; it is not a legal signature.</p><a href="/privacy">Read the privacy boundary</a>
       </section>
       <section id="pricing" class="pricing section-rule" aria-labelledby="pricing-heading">
-        <div><p class="eyebrow">Studio</p><h2 id="pricing-heading">$79 USD per agency, each month.</h2><p>Studio includes agency rooms, private reviewers, GitHub fixture import, and exports. Client reviewers remain free.</p></div>
-        <a class="button button--secondary" href="/settings/billing">Open Studio billing</a>
+        <div><p class="eyebrow">Studio</p><h2 id="pricing-heading">Check Studio billing status.</h2><p>Studio includes agency rooms, private reviewers, GitHub fixture import, and exports. Client reviewers remain free.</p></div>
+        <a class="button button--secondary" href="/settings/billing">View Studio billing</a>
       </section>
     </main>
   `;
@@ -193,11 +194,11 @@ function demoRoom(state: DemoState): string {
 }
 
 function privacy(): string {
-  return `<main id="main" tabindex="-1" class="document-page"><p class="eyebrow">Privacy</p><h1 id="page-heading" tabindex="-1">Your sample stays separate.</h1><p class="document-lede">The demo is a browser-only sample. Real rooms use your Sociobot account and private server storage.</p><section><h2>What the sample stores</h2><p>The demo saves its room, checklist, and acknowledgement in one local key beginning with <code>demo:</code>. Reset demo replaces it.</p></section><section><h2>What the sample does not send</h2><p>The demo sends no fixture, checklist, or acknowledgement data. It uses no cookies, analytics, third-party fonts, or third-party scripts.</p></section><section><h2>What real rooms store</h2><p>Real rooms store your agency name, selected repository reference, sanitized fixture, questions, and acknowledgement. They never store the imported secret-like values removed by the redaction step.</p><p>Agency members can download each room export. Contact the site operator to delete an agency workspace while self-service deletion is prepared.</p></section><section><h2>Sign-in and checkout</h2><p>Microsoft Entra handles sign-in. Sociobot handles hosted checkout. This product does not receive your password or card details.</p></section><p><a href="/terms">Read the terms</a></p></main>`;
+  return `<main id="main" tabindex="-1" class="document-page"><p class="eyebrow">Privacy</p><h1 id="page-heading" tabindex="-1">Your sample stays separate.</h1><p class="document-lede">The demo is a browser-only sample. Real rooms use your Sociobot account and private server storage.</p><section><h2>What the sample stores</h2><p>The demo saves its room, checklist, and acknowledgement in one local key beginning with <code>demo:</code>. Reset demo replaces it.</p></section><section><h2>What the sample does not send</h2><p>The demo sends no fixture, checklist, or acknowledgement data. It uses no cookies, analytics, third-party fonts, or third-party scripts.</p></section><section><h2>What real rooms store</h2><p>Real rooms store your agency name, selected repository reference, sanitized fixture, questions, and acknowledgement. GitHub tokens are encrypted at rest and are removed when you disconnect GitHub or delete your agency.</p><p>Agency members can download each room export. Signed-in agency owners can permanently delete the agency, rooms, client links, and connected repositories from <a href="/settings/data">Data controls</a>.</p></section><section><h2>Sign-in and checkout</h2><p>Microsoft Entra handles sign-in. Sociobot handles hosted checkout only after its product registration is live. This product does not receive your password or card details.</p></section><p><a href="/terms">Read the terms</a></p></main>`;
 }
 
 function terms(): string {
-  return `<main id="main" tabindex="-1" class="document-page"><p class="eyebrow">Terms</p><h1 id="page-heading" tabindex="-1">A review is not a contract.</h1><p class="document-lede">Use the sample for evaluation. Use real rooms only for fixtures you are allowed to share with the invited client.</p><section><h2>Acknowledgement</h2><p>A named acknowledgement says the reviewer completed the displayed checklist for one revision. It is not an e-signature, legal approval, or substitute for a contract.</p></section><section><h2>Studio subscription</h2><p>Studio costs $79 USD per agency each month. Client reviewers are free. Sociobot handles checkout, cancellation, refunds, and payment records.</p><p>Cancelled agencies keep read and export access to existing rooms. Creating new rooms requires an active subscription after the pilot period.</p></section><section><h2>Repository use</h2><p>The importer reads only the public GitHub JSON file you select. You must review the sanitized result before saving a room.</p></section><p><a href="/privacy">Read the privacy boundary</a></p></main>`;
+  return `<main id="main" tabindex="-1" class="document-page"><p class="eyebrow">Terms</p><h1 id="page-heading" tabindex="-1">A review is not a contract.</h1><p class="document-lede">Use the sample for evaluation. Use real rooms only for fixtures you are allowed to share with the invited client.</p><section><h2>Acknowledgement</h2><p>A named acknowledgement says the reviewer completed the displayed checklist for one revision. It is not an e-signature, legal approval, or substitute for a contract.</p></section><section><h2>Studio subscription</h2><p>The intended Studio price is $79 USD per agency each month. Client reviewers are free. A checkout link appears only after Sociobot has registered and verified the hosted subscription product.</p><p>Cancelled agencies keep read and export access to existing rooms. Creating new rooms requires an active subscription after the pilot period.</p></section><section><h2>Repository use</h2><p>GitHub App consent is read-only and limited to repositories selected in GitHub. Select a connected repository again in this product before its JSON fixture can be imported. Disconnect removes the encrypted connection token.</p></section><p><a href="/privacy">Read the privacy boundary</a></p></main>`;
 }
 
 function signedOutPanel(): string {
@@ -210,9 +211,9 @@ function roomsPage(): string {
 
 function newRoomPage(): string {
   if (!currentAccount()) return `<main id="main" tabindex="-1" class="workspace-page"><p class="eyebrow">Create a room</p><h1 id="page-heading" tabindex="-1">Connect a release fixture.</h1>${signedOutPanel()}</main>`;
-  return `<main id="main" tabindex="-1" class="workspace-page"><p class="eyebrow">New room</p><h1 id="page-heading" tabindex="-1">Connect a release fixture.</h1><p class="document-lede">Choose one JSON file from a public GitHub repository. The server removes secret-like values before saving it.</p>
+  return `<main id="main" tabindex="-1" class="workspace-page"><p class="eyebrow">New room</p><h1 id="page-heading" tabindex="-1">Connect a release fixture.</h1><p class="document-lede">Choose one JSON file from a repository you selected through the read-only GitHub connection. The server removes secret-like values before saving it.</p>
     <div class="prepare-grid">
-      <form class="instrument-form" data-form="import-fixture"><h2>1. Import from GitHub</h2><div class="form-grid"><label>Owner<input name="owner" required maxlength="160" autocomplete="off" /></label><label>Repository<input name="repository" required maxlength="160" autocomplete="off" /></label><label>Release ref<input name="gitRef" value="main" required maxlength="160" autocomplete="off" /></label><label>JSON file path<input name="path" required maxlength="240" autocomplete="off" placeholder="fixtures/payment.json" /></label></div><button class="button button--secondary" type="submit">Import and redact fixture</button><p class="form-status" role="status" aria-live="polite"></p><p class="form-error" role="alert" aria-live="assertive"></p></form>
+      <form class="instrument-form" data-form="import-fixture"><h2>1. Import from GitHub</h2><div class="form-grid"><label>Selected repository<select name="repository" required data-testid="repository-select"><option value="">Loading selected repositories…</option></select></label><label>Release ref<input name="gitRef" value="main" required maxlength="160" autocomplete="off" /></label><label>JSON file path<input name="path" required maxlength="240" autocomplete="off" placeholder="fixtures/payment.json" /></label></div><p>Need another repository? <a href="/settings/repositories">Connect GitHub and select it</a>.</p><button class="button button--secondary" type="submit">Import and redact fixture</button><p class="form-status" role="status" aria-live="polite"></p><p class="form-error" role="alert" aria-live="assertive"></p></form>
       <section class="fixture-preview" aria-labelledby="import-preview-heading"><h2 id="import-preview-heading">2. Review redaction</h2><div data-testid="import-preview"><p>Imported fixture and redaction findings will appear here.</p></div></section>
       <form class="instrument-form" data-form="create-room"><h2>3. Record the release decision</h2><div class="form-grid"><label>Room title<input name="title" required maxlength="120" /></label><label>Client name<input name="clientName" required maxlength="120" /></label><label>Decision<textarea name="decision" required maxlength="1000" placeholder="Pending status retries stop after three checks."></textarea></label><label>Decision owner<input name="decisionOwner" required maxlength="120" placeholder="Dara Singh · Agency API lead" /></label></div><label class="confirm-check"><input name="redactionConfirmed" type="checkbox" required /><span>I reviewed the sanitized fixture and redaction report.</span></label><button class="button button--primary" type="submit" disabled data-testid="create-real-room">Create client room</button><p class="form-error" role="alert" aria-live="assertive"></p></form>
     </div></main>`;
@@ -226,9 +227,21 @@ function reviewPage(): string {
   return `<main id="main" tabindex="-1" class="workspace-page review-page"><p class="eyebrow">Private client review</p><h1 id="page-heading" tabindex="-1">Review this API handoff.</h1><div id="review-content" aria-live="polite"><p class="loading-state">Opening the shared room…</p></div></main>`;
 }
 
+function repositoriesPage(): string {
+  if (!currentAccount()) return `<main id="main" tabindex="-1" class="workspace-page"><p class="eyebrow">Repository settings</p><h1 id="page-heading" tabindex="-1">Connect a selected GitHub repository.</h1>${signedOutPanel()}</main>`;
+  return `<main id="main" tabindex="-1" class="document-page"><p class="eyebrow">Repository settings</p><h1 id="page-heading" tabindex="-1">Connect a selected GitHub repository.</h1><p class="document-lede">GitHub App consent is read-only. Choose repositories in GitHub, then select the one this agency may import here.</p><button class="button button--primary" type="button" data-action="connect-github">Connect GitHub</button><p class="form-error" data-testid="github-connect-error" role="alert" aria-live="assertive"></p><section><h2>Available repositories</h2><div id="repository-settings" aria-live="polite"><p class="loading-state">Loading GitHub connections…</p></div></section></main>`;
+}
+
+function dataControlsPage(): string {
+  if (!currentAccount()) return `<main id="main" tabindex="-1" class="workspace-page"><p class="eyebrow">Data controls</p><h1 id="page-heading" tabindex="-1">Delete an agency workspace.</h1>${signedOutPanel()}</main>`;
+  return `<main id="main" tabindex="-1" class="document-page"><p class="eyebrow">Data controls</p><h1 id="page-heading" tabindex="-1">Delete an agency workspace.</h1><p class="document-lede">Download each room export before deletion. This permanently removes every room, review link, question, acknowledgement, and connected GitHub token for this agency.</p><form class="instrument-form" data-form="delete-agency"><h2>Permanent deletion</h2><label>Type DELETE to confirm<input name="confirmation" required autocomplete="off" /></label><button class="button button--danger" type="submit">Delete agency workspace</button><p class="form-error" role="alert" aria-live="assertive"></p></form></main>`;
+}
+
 function billingPage(): string {
-  const checkout = productConfig()?.checkout_url ?? "https://api.sociobot.in/api/v1/products/integration-handoff-room/checkout";
-  return `<main id="main" tabindex="-1" class="document-page"><p class="eyebrow">Studio billing</p><h1 id="page-heading" tabindex="-1">Start Studio through Sociobot.</h1><p class="document-lede">Studio costs $79 USD per agency each month. Client reviewers remain free.</p><section><h2>What Studio includes</h2><p>Studio includes persistent agency rooms, GitHub fixture import, private client links, questions, acknowledgements, and exports.</p><a class="button button--primary" href="${escapeHtml(checkout)}">Open hosted checkout</a></section><section><h2>Billing boundary</h2><p>Sociobot is the merchant of record. Payment details are handled on its hosted checkout, not by this product.</p><p><a href="/terms">Read subscription terms</a></p></section></main>`;
+  const config = productConfig();
+  const checkout = config?.checkout_url;
+  const contract = checkout ? `<a class="button button--primary" href="${escapeHtml(checkout)}">Open hosted checkout</a>` : `<p class="error-state" role="status">Studio checkout is not available yet because Sociobot has not registered the subscription product. No payment can be started from this page.</p>`;
+  return `<main id="main" tabindex="-1" class="document-page"><p class="eyebrow">Studio billing</p><h1 id="page-heading" tabindex="-1">Check Studio billing.</h1><p class="document-lede">The intended Studio price is $79 USD per agency each month. Client reviewers remain free.</p><section><h2>What Studio includes</h2><p>Studio includes persistent agency rooms, GitHub fixture import, private client links, questions, acknowledgements, and exports.</p>${contract}</section><section><h2>Billing boundary</h2><p>Sociobot is the merchant of record. Payment details are handled on its hosted checkout, not by this product.</p><p><a href="/terms">Read subscription terms</a></p></section></main>`;
 }
 
 function callbackPage(): string {
@@ -243,6 +256,13 @@ function renderRooms(data: Record<string, unknown>): void {
   if (!target) return;
   const rooms = arrayValue(data.rooms);
   target.innerHTML = rooms.length ? `<ul class="room-list">${rooms.map((room) => `<li><a href="/rooms/${escapeHtml(textValue(room.id))}"><strong>${escapeHtml(textValue(room.title))}</strong><span>${escapeHtml(textValue(room.client_name))} · ${escapeHtml(textValue(room.repository))} · revision ${escapeHtml(String(room.revision ?? 1))}</span></a></li>`).join("")}</ul>` : `<section class="empty-state"><h2>No client rooms yet</h2><p>Your connected fixtures and review status will appear here.</p><a class="button button--primary" href="/rooms/new">Create your first room</a></section>`;
+}
+
+function renderRepositories(data: Record<string, unknown>): void {
+  const target = document.querySelector<HTMLElement>("#repository-settings");
+  if (!target) return;
+  const repositories = arrayValue(data.repositories);
+  target.innerHTML = repositories.length ? `<ul class="room-list">${repositories.map((repository) => `<li><div><strong>${escapeHtml(textValue(repository.full_name))}</strong><span>${repository.private ? "Private" : "Public"} · connected as ${escapeHtml(textValue(repository.github_login))}</span></div><div class="room-actions">${repository.selected ? '<span class="status-chip status-chip--success">Selected</span>' : `<button class="button button--secondary" type="button" data-action="select-repository" data-connection-id="${escapeHtml(textValue(repository.connection_id))}" data-repository="${escapeHtml(textValue(repository.full_name))}">Select for import</button>`}<button class="button button--quiet" type="button" data-action="disconnect-github" data-connection-id="${escapeHtml(textValue(repository.connection_id))}">Disconnect</button></div></li>`).join("")}</ul>` : `<p>No GitHub repositories are connected. Connect GitHub to select a repository.</p>`;
 }
 
 function renderAgencySetup(message = "Name the agency that owns these rooms."): void {
@@ -282,6 +302,13 @@ async function hydratePage(page: AppPage): Promise<void> {
     }
     if (page === "/room" && currentAccount()) renderRoom(await api<Record<string, unknown>>(`/api/rooms/${encodeURIComponent(window.location.pathname.split("/").pop() ?? "")}`));
     if (page === "/review") renderReview(await api<Record<string, unknown>>(`/api/review/${encodeURIComponent(window.location.pathname.split("/").pop() ?? "")}`, {}, false));
+    if (page === "/settings/repositories" && currentAccount()) renderRepositories(await api<Record<string, unknown>>("/api/github/repositories"));
+    if (page === "/rooms/new" && currentAccount()) {
+      const data = await api<Record<string, unknown>>("/api/github/repositories");
+      const select = document.querySelector<HTMLSelectElement>("[data-testid='repository-select']");
+      const repositories = arrayValue(data.repositories).filter((repository) => repository.selected === true);
+      if (select) select.innerHTML = repositories.length ? `<option value="">Choose a selected repository</option>${repositories.map((repository) => `<option value="${escapeHtml(textValue(repository.full_name))}" data-connection-id="${escapeHtml(textValue(repository.connection_id))}">${escapeHtml(textValue(repository.full_name))}</option>`).join("")}` : '<option value="">No selected repositories — connect GitHub first</option>';
+    }
   } catch (error) {
     const target = document.querySelector<HTMLElement>("#workspace-content, #room-content, #review-content");
     if (target) target.innerHTML = `<section class="error-state" role="alert"><h2>This page could not be opened</h2><p>${escapeHtml(error instanceof Error ? error.message : "Reload and try again.")}</p></section>`;
@@ -303,6 +330,8 @@ function pageMarkup(page: AppPage): string {
     case "/room": return roomPage();
     case "/review": return reviewPage();
     case "/settings/billing": return billingPage();
+    case "/settings/repositories": return repositoriesPage();
+    case "/settings/data": return dataControlsPage();
     case "/auth/callback": return callbackPage();
     case "/404": return notFound();
   }
@@ -417,6 +446,21 @@ document.addEventListener("click", (event) => {
       const link = document.createElement("a"); link.href = objectUrl; link.download = `${roomId}-handover.json`; link.click(); window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
     });
   }
+  if (action === "connect-github") {
+    void api<{ authorization_url: string }>("/api/github/connect").then((result) => window.location.assign(result.authorization_url)).catch((error: unknown) => {
+      const target = document.querySelector<HTMLElement>("[data-testid='github-connect-error']");
+      if (target) target.textContent = error instanceof Error ? error.message : "GitHub connection could not start.";
+    });
+  }
+  if (action === "select-repository") {
+    const connectionId = control.dataset.connectionId ?? "";
+    const repository = control.dataset.repository ?? "";
+    void api("/api/github/repositories/selection", { method: "POST", body: JSON.stringify({ connection_id: connectionId, repository }) }).then(async () => renderRepositories(await api<Record<string, unknown>>("/api/github/repositories")));
+  }
+  if (action === "disconnect-github") {
+    const connectionId = control.dataset.connectionId ?? "";
+    void api(`/api/github/connections/${encodeURIComponent(connectionId)}`, { method: "DELETE" }).then(async () => renderRepositories(await api<Record<string, unknown>>("/api/github/repositories")));
+  }
 });
 
 document.addEventListener("change", (event) => {
@@ -460,7 +504,9 @@ async function handleRealForm(form: HTMLFormElement): Promise<void> {
       renderRooms(await api<Record<string, unknown>>("/api/rooms"));
     }
     if (form.dataset.form === "import-fixture") {
-      const result = await api<Record<string, unknown>>("/api/fixtures/import", { method: "POST", body: JSON.stringify({ owner: String(values.get("owner") ?? ""), repository: String(values.get("repository") ?? ""), git_ref: String(values.get("gitRef") ?? "main"), path: String(values.get("path") ?? "") }) });
+      const select = form.querySelector<HTMLSelectElement>("select[name='repository']");
+      selectedConnectionId = select?.selectedOptions[0]?.dataset.connectionId ?? "";
+      const result = await api<Record<string, unknown>>("/api/fixtures/import", { method: "POST", body: JSON.stringify({ connection_id: selectedConnectionId, repository: String(values.get("repository") ?? ""), git_ref: String(values.get("gitRef") ?? "main"), path: String(values.get("path") ?? "") }) });
       importedFixture = result.fixture as Record<string, unknown>;
       importedFindings = Array.isArray(result.findings) ? result.findings as string[] : [];
       importedFixture.__room_repository = result.repository;
@@ -494,6 +540,11 @@ async function handleRealForm(form: HTMLFormElement): Promise<void> {
       await api(`/api/rooms/${encodeURIComponent(roomId)}/questions/${encodeURIComponent(questionId)}/answer`, { method: "POST", body: JSON.stringify({ answer: String(values.get("answer") ?? "") }) });
       renderRoom(await api<Record<string, unknown>>(`/api/rooms/${encodeURIComponent(roomId)}`));
     }
+    if (form.dataset.form === "delete-agency") {
+      await api("/api/agency", { method: "DELETE", body: JSON.stringify({ confirmation: String(values.get("confirmation") ?? "") }) });
+      statusMessage = "Agency workspace deleted. Sign in again to create a new workspace.";
+      routeTo(new URL("/rooms", window.location.origin));
+    }
   } catch (caught) {
     if (error) error.textContent = caught instanceof Error ? caught.message : "The request could not be completed.";
   }
@@ -505,6 +556,6 @@ window.addEventListener("popstate", () => {
 });
 
 render();
-if (window.location.pathname.startsWith("/rooms") || window.location.pathname === "/auth/callback") {
+if (window.location.pathname.startsWith("/rooms") || window.location.pathname.startsWith("/settings") || window.location.pathname === "/auth/callback") {
   void initializeIdentity().then(() => render());
 }

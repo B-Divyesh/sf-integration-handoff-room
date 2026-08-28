@@ -127,6 +127,7 @@ code, pre { font-family: var(--font-mono); }
 .button--primary { border-color: var(--color-signal); background: var(--color-signal); color: var(--color-signal-ink); transition: transform 180ms ease; }
 .button--primary:hover { background: var(--color-aqua); border-color: var(--color-aqua); color: var(--color-canvas); }
 .button--secondary { background: transparent; color: var(--color-ink); }
+.button--danger { border-color: var(--color-danger); background: var(--color-danger); color: #fff; }
 .button--quiet { min-height: 2.75rem; background: transparent; color: var(--color-ink); font-size: 0.875rem; }
 .button:not(:disabled):active, .theme-toggle:active { transform: translateY(1px); }
 

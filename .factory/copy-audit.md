@@ -9,7 +9,7 @@ Checked 2026-08-28. No landing sentence exceeds 22 words. The copy contains none
 | The sample opens now. Real rooms use sign-in. | 8 | Pass |
 | Sample changes stay in a separate browser space. | 8 | Pass |
 | The sample sends no fixture data. | 6 | Pass |
-| Studio costs $79/month per agency. | 5 | Pass |
+| Billing shows checkout only when Sociobot has registered it. | 9 | Pass |
 | One release, one reference point. | 5 | Pass |
 | The room keeps the selected response, decision record, named owner, and review state in view. | 15 | Pass |
 | Move from sample to review in three steps. | 8 | Pass |
@@ -22,7 +22,7 @@ Checked 2026-08-28. No landing sentence exceeds 22 words. The copy contains none
 | It is not a test runner or a contract. | 9 | Pass |
 | The sample sends no fixture or review data. | 8 | Pass |
 | Its acknowledgement records a review; it is not a legal signature. | 11 | Pass |
-| $79 USD per agency, each month. | 6 | Pass |
+| Check Studio billing status. | 4 | Pass |
 | Studio includes agency rooms, private reviewers, GitHub fixture import, and exports. | 10 | Pass |
 | Client reviewers remain free. | 4 | Pass |
 

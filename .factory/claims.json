@@ -57,7 +57,7 @@
   },
   {
     "id": "agency-room-browser",
-    "claim": "A signed-in agency member can import a GitHub JSON fixture, review redaction, name a decision owner, and create a client room.",
+    "claim": "A signed-in agency member can import a selected GitHub JSON fixture, review redaction, name a decision owner, and create a client room.",
     "where": "Create-room page and README",
     "test": "npm run test:e2e -- --grep @claim:agency-room-browser",
     "sandbox": "test-only browser identity and intercepted API; complete the full create-room form and assert the saved room reloads with sanitized content"
@@ -78,9 +78,23 @@
   },
   {
     "id": "studio-hosted-checkout",
-    "claim": "Studio costs $79 USD per agency each month and checkout is hosted by Sociobot.",
+    "claim": "Studio never shows a checkout action until the Sociobot subscription product is registered and verified.",
     "where": "Landing pricing, billing, and terms pages",
     "test": "npm run test:e2e -- --grep @claim:studio-hosted-checkout",
-    "sandbox": "fresh billing page; assert the exact price and Sociobot product checkout URL"
+    "sandbox": "fresh billing page without a registered product; assert an unavailable status and no checkout link"
+  },
+  {
+    "id": "github-selected-repository",
+    "claim": "Fixture import requires a repository selected through the GitHub connection.",
+    "where": "Create-room and repository settings pages",
+    "test": "npm run test:e2e -- --grep @claim:github-selected-repository",
+    "sandbox": "test identity with no selected repositories; assert the raw owner/repository fields are absent and connect guidance is visible"
+  },
+  {
+    "id": "agency-deletion",
+    "claim": "Agency owners can permanently delete their workspace and connected records.",
+    "where": "Data controls and privacy pages",
+    "test": "npm run test:e2e -- --grep @claim:agency-deletion",
+    "sandbox": "test identity; type DELETE; assert a DELETE API request and return to rooms"
   }
 ]

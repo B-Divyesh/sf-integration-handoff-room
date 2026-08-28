@@ -6,7 +6,8 @@ interface PublicConfig {
   client_id: string;
   authority: string;
   build_sha: string;
-  checkout_url: string;
+  checkout_url: string | null;
+  billing_registered: boolean;
   studio_price: string;
 }
 
@@ -24,9 +25,12 @@ export async function initializeIdentity(): Promise<void> {
       client_id: "25c704f4-465a-47af-80ab-2c489466b697",
       authority: "https://sociobotcustomers.ciamlogin.com/35c6fe40-0ec0-46b6-98c6-213ad4de6650/",
       build_sha: import.meta.env.VITE_BUILD_SHA || "dev",
-      checkout_url: "https://api.sociobot.in/api/v1/products/integration-handoff-room/checkout",
+      checkout_url: null,
+      billing_registered: false,
       studio_price: "$79 USD per agency each month"
     };
+    const configResponse = await fetch("/api/config", { headers: { Accept: "application/json" } });
+    if (configResponse.ok) publicConfig = await configResponse.json() as PublicConfig;
     if (TEST_IDENTITY) return;
     const { BrowserCacheLocation, PublicClientApplication } = await import("@azure/msal-browser");
     const configuration: Configuration = {

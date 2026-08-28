@@ -2,7 +2,7 @@
 
 Integration Handoff Room gives small software agencies one client-ready place to review a sanitized API fixture, answer questions, and preserve a named acknowledgement.
 
-The public `/demo` is an isolated sample. Signed-in agency members can import one public GitHub JSON fixture, review automatic redaction, save a room, create a private client link, answer questions, and export the record. Client reviewers can ask questions and acknowledge one room revision without an account. Studio costs $79 USD per agency each month through Sociobot hosted checkout.
+The public `/demo` is an isolated sample. Signed-in agency members connect GitHub through a read-only GitHub App consent flow, select one permitted repository, import one JSON fixture, review automatic redaction, save a room, create a private client link, answer questions, and export the record. Client reviewers can ask questions and acknowledge one room revision without an account. The intended Studio price is $79 USD per agency each month; its hosted Sociobot checkout is shown only after the live product endpoint verifies registration.
 
 The researched opportunity is in [.factory/brief.json](.factory/brief.json), the delivery plan is in [.factory/plan.md](.factory/plan.md), and the product-specific visual system is in [.factory/design.md](.factory/design.md).
 
@@ -41,7 +41,9 @@ Every visitor-visible product promise is listed in [.factory/claims.json](.facto
 
 The multi-stage `Dockerfile` builds Vite and the Rust service. The non-root container serves the site and API on `PORT` (default 8080), stores SQLite data under `/data`, and reports its build argument from `/health`. The service starts with only `PORT`; Entra tenant values use the shared Sociobot defaults and remain overrideable.
 
-All routes except health checks have per-client token-bucket limits. The configured three-replica service stays below 20 reads per second with a burst of 40. Writes stay below 5 per second with a burst of 10. Rejected requests return 429 and `Retry-After: 1`.
+All routes except health checks have per-client token-bucket limits: reads are 20 requests per second with a burst of 40, and writes are 5 requests per second with a burst of 10. Rejected requests return 429 and `Retry-After: 1`. This in-memory limiter is correct for one replica; deployment must remain at one replica until the factory provides a shared limiter.
+
+GitHub App OAuth is optional runtime configuration: set `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET` after registering a GitHub App with read-only Contents permission and selected-repository installation. The service starts without them, but correctly refuses repository connection rather than falling back to public raw URLs. OAuth tokens are encrypted with a generated `/data/github-token-key.bin` (or a 32-byte URL-safe-base64 `GITHUB_TOKEN_ENCRYPTION_KEY` override). Agency owners can disconnect GitHub or permanently delete the workspace at `/settings/data`.
 
 The factory deploys the container. Do not run infrastructure, DNS, or billing-provider changes from this repository.
 
