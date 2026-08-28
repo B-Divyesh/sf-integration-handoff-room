@@ -1,0 +1,26 @@
+body {
+  display: grid;
+  min-height: 100vh;
+  margin: 0;
+  place-items: center;
+  background: #07131f;
+  color: #f7f4e9;
+  font: 16px/1.55 system-ui, sans-serif;
+}
+
+main {
+  max-width: 38rem;
+  margin: 1rem;
+  padding: 2rem;
+  border: 1px solid #416174;
+  background: #102333;
+}
+
+a {
+  color: #63d9d2;
+}
+
+a:focus-visible {
+  outline: 3px solid #f3b52a;
+  outline-offset: 3px;
+}

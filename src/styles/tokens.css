@@ -1,0 +1,50 @@
+:root {
+  color-scheme: dark;
+  --color-canvas: #07131f;
+  --color-surface: #102333;
+  --color-surface-raised: #173348;
+  --color-ink: #f7f4e9;
+  --color-muted: #bed0d5;
+  --color-line: #416174;
+  --color-signal: #f3b52a;
+  --color-signal-ink: #07131f;
+  --color-aqua: #63d9d2;
+  --color-success: #9bd683;
+  --color-warning: #f0ba54;
+  --color-danger: #ff9a86;
+
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-text: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+
+  --radius-instrument: 0.375rem;
+  --radius-dialog: 0.75rem;
+  --content-width: 72rem;
+  --focus-ring: 0 0 0 3px var(--color-canvas), 0 0 0 6px var(--color-signal);
+}
+
+[data-theme="day"] {
+  color-scheme: light;
+  --color-canvas: #f4f0e6;
+  --color-surface: #fffdf7;
+  --color-surface-raised: #e6edf0;
+  --color-ink: #122a3a;
+  --color-muted: #4d6572;
+  --color-line: #aabcc4;
+  --color-signal: #8a5700;
+  --color-signal-ink: #fffdf7;
+  --color-aqua: #006d73;
+  --color-success: #28733e;
+  --color-warning: #935d00;
+  --color-danger: #b43d37;
+}

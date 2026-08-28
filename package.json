@@ -1,0 +1,29 @@
+{
+  "name": "integration-handoff-room",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A client-facing API integration handoff room for small software agencies.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:api": "cargo run --manifest-path server/Cargo.toml",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:api": "cargo test --manifest-path server/Cargo.toml",
+    "test:all": "npm run check && npm test && npm run test:api",
+    "build": "vite build",
+    "build:api": "cargo build --release --manifest-path server/Cargo.toml",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2",
+    "@types/node": "^22.15.3",
+    "typescript": "^5.8.3",
+    "vite": "^7.1.7",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://integration-handoff-room.sociobot.in/sitemap.xml
