@@ -1,48 +1,57 @@
-# M1 delivery handoff
+# Independent verification handoff — FAIL
 
-Date: 2026-08-28
-Work order: `venture-integration-handoff-room-m1`
+Date: 2026-08-28 UTC
 
-## Delivered
+Work order: `integration-handoff-room-verify-1`
 
-M1 is live at `https://integration-handoff-room.sociobot.in`. It provides a
-complete, safe sample handoff room at `/demo`: fixture, decisions, owners,
-required checklist, named acknowledgement, and JSON export. The landing,
-privacy, terms, and 404 routes are also live.
+Tested commit: `4abd41aee397f4bd7b6c34c553481bb5acf7f193`
 
-The container build now serves the Vite application and deep links directly
-from Axum. It starts with only `PORT`, has no required secret configuration,
-and exposes `/health` and `/ready`.
+Tested URL: `https://integration-handoff-room.sociobot.in`
+Decision: **FAIL — release blocked.**
 
-## Live verification
+The live deployment is this candidate: `/health` reports the exact SHA and the
+deployed HTML, JavaScript, and CSS hashes match the local production build.
+This is not a deployment-only failure.
 
-Cold verification of `https://integration-handoff-room.sociobot.in/demo`:
+## Blocking defects
 
-- HTTPS GET: 200
-- Browser load: 604 ms
-- Console errors: none
-- Page checks: title present, `lang=en`, one h1, `<main>`, no missing image
-  alts, and no unlabelled buttons
-- `/health`: returned `status: ok` with the deployed build SHA
+1. **Critical — incomplete product:** only the isolated sample exists. There is
+   no Git connection, real room creation/persistence, client sharing,
+   automatic redaction, questions, real acknowledgement, account, or
+   subscription. **Start for real** says those rooms are future work.
+2. **High — no server rate limit:** 300 requests at concurrency 60 all returned
+   200 in 1.09 seconds (about 300 requests/second). The documented 20
+   requests/second, burst-40 allowance produced no 429 or `Retry-After`.
+3. **High — claims contract fails:** live privacy, no-request, no-third-party,
+   and sanitization statements are not exact claims in `.factory/claims.json`;
+   the existing isolation test would allow same-origin API traffic.
+4. **High — accessibility:** Axe serious failures for day-chart contrast
+   (4.36:1) and the mobile scrollable payload; many mobile links/buttons are
+   below 44 px touch height.
+5. **Medium — container contract:** Dockerfile pins
+   `rust:1.88-slim-bookworm`, which the supplied backend contract forbids.
+6. **Medium — routing:** unknown routes render the designed page with HTTP 200
+   instead of 404.
+7. **Medium — first screen:** at 390 x 844 the required three factual lines
+   start below the first viewport.
+8. **Low — delivery details:** hashed assets have no Cache-Control/ETag and
+   unstable Last-Modified values across replicas; the footer says `build dev`.
 
-## How to run and verify
+## Evidence that passed
 
-```sh
-npm install
-npm run check
-npm test
-npm run build
-npm run test:e2e
-npm run test:api
-npm run build:api
-```
+- Cold first read clearly states what the sample does, who it is for, and what
+  to click; **Try it with sample data** opens `/demo` in one click.
+- After `npm ci`, all four exact claim commands pass independently.
+- `npm run check`, `npm test` (8), `npm run test:e2e` (9),
+  `npm run test:api` (2), `npm run build`, and `npm run build:api` pass.
+- The sample's normal, whitespace-error, 80-character boundary, export, reset,
+  and corrupt-storage recovery paths work.
+- Live sample traffic is same-origin only; no console/page errors occurred.
+- Security headers are present. Reduced motion, keyboard order/focus, semantic
+  landmarks, one h1, and 390 px no-overflow checks pass apart from the listed
+  accessibility defects.
+- Bundle: 7.57 KB gzip JS and 4.16 KB gzip CSS.
+- Lighthouse landing: 100/100/100/100; LCP 1.2 s, CLS 0, TBT 0 ms.
 
-Full scope, claim evidence, and M2 prerequisites are in
-`.factory/handoff-m1.md`. The sandbox boundary is in `.factory/demo.md`.
-
-## Next milestone
-
-M2 adds the real account, persistence, redaction, repository, billing, and
-rate-limit systems. Factory operators must register the Entra callback,
-provision PostgreSQL/storage/OAuth, and register the Sociobot/Dodo Studio test
-plan before that work starts.
+Full commands, observations, severities, and applicability notes are in
+`.factory/verification.md`. No product code was modified during verification.
