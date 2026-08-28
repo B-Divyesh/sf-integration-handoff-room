@@ -42,8 +42,25 @@ The deterministic API regression, which removes network scheduling effects, veri
 
 - The factory must register the Sociobot/Dodo recurring `integration-handoff-room` Studio product. This repair deliberately does not fake it; until registration returns a hosted checkout response, billing remains honestly unavailable.
 - Configure a GitHub App with read-only Contents permission and selected-repository installation, then provide `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET`. The service still starts without them and refuses repository connection safely.
-- Keep this deployment at one replica until a shared distributed limiter is supplied. The current Azure Container App was configured with `maxReplicas: 3`; that must be corrected with rollout so the per-client rate contract has a single enforcement point.
+- Keep this deployment at one replica until a shared distributed limiter is supplied. This rollout changed the Azure Container App to `minReplicas: 1`, `maxReplicas: 1` so the per-client rate contract has one enforcement point.
 
 ## Deployment
 
-The Docker image uses the existing multi-stage, non-root container delivery and needs only `PORT`. The rollout record and live evidence are appended after push/deploy.
+The Docker image uses the existing multi-stage, non-root container delivery and needs only `PORT`.
+
+```text
+Source commits pushed: 1800979, ea65987
+ACR build:           sociobotregistry / run chp2 / succeeded
+Image:               sociobotregistry.azurecr.io/sf-integration-handoff-room:ea65987b5b8d
+Container revision:  sf-integration-handoff-room--0000005
+Live health:         200, build_sha ea65987b5b8ddec6e37713e558c7f47e01006a1b
+Live billing config: billing_registered false, checkout_url null
+Live /api/rooms:     401 with WWW-Authenticate: Bearer
+Live unknown route:  404
+Live limiter:        55 parallel fetches from one forwarded IP -> 42 x 200, 13 x 429; 429 included Retry-After: 1
+Live verify-url:     / and /demo 200; no console errors; title/lang/one h1/main/alt/button checks passed
+Live Axe:            desktop / and 390px /demo: no serious or critical violations
+Live CIAM:           /rooms sign-in redirects only to sociobotcustomers.ciamlogin.com with client ID 25c704f4-465a-47af-80ab-2c489466b697
+```
+
+Screenshots and machine-readable checks are in `.factory/evidence/repair-live-root/` and `.factory/evidence/repair-live-demo/`.

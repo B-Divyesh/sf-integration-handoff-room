@@ -1,0 +1,14 @@
+{
+  "url": "https://integration-handoff-room.sociobot.in/",
+  "loadMs": 651,
+  "errors": [],
+  "a11y": {
+    "title": "Integration Handoff Room — client API handoffs",
+    "lang": "en",
+    "h1": 1,
+    "main": true,
+    "imgsMissingAlt": 0,
+    "buttonsUnlabeled": 0,
+    "textLength": 1640
+  }
+}
