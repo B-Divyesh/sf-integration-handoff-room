@@ -1,0 +1,31 @@
+{
+  "slug": "integration-handoff-room",
+  "title": "Integration Handoff Room",
+  "territory": "devtools-data",
+  "user": "Small software agencies and fractional engineering teams that need clients to accept an API integration with executable examples, decisions, and ownership—not a pile of docs and email.",
+  "evidence": [
+    {
+      "url": "https://hn.algolia.com/api/v1/items/45214077",
+      "date": "2025-09-11",
+      "quote_or_summary": "A small dev team has onboarding, design, API, and operational docs scattered across Notion, Drive, GitHub, and Slack and wants something that stays easy to maintain and sync."
+    },
+    {
+      "url": "https://github.com/usebruno/bruno/issues/5657",
+      "date": "2025-09-29",
+      "quote_or_summary": "The request explains that API developers and QA need reusable valid/invalid/localized request variants for debugging, regression, and team handoff; it asks for persisted multi-payload request tabs."
+    }
+  ],
+  "recurrence": "The two 2025 threads identify the same delivery gap: documentation is scattered while the actual payloads needed to verify the integration live in personal tooling. This recurs at every client release and handoff.",
+  "current_workaround": "Send Notion/Drive links, share Postman/Bruno collections, run screen-share acceptance calls, and reconstruct what was agreed when support begins.",
+  "incumbents_and_gap": "Notion, Confluence, Postman, Bruno, and Stoplight manage docs or requests. None is a small agency-facing acceptance room that binds a selected executable example, a decision, and a named client acknowledgement.",
+  "smallest_useful_product": "Git-connected release room that embeds sanitized request/response fixtures, acceptance checklist, client questions, versioned decisions, and signed-off handover export. Non-goals: API gateway, test runner, source-code hosting, or general wiki.",
+  "success_measure": "In pilot projects, 80% of client integration questions are answered from the handoff room and post-handoff clarification hours decline by 30%.",
+  "artifact_class": "web-with-backend",
+  "monetization": "subscription — $79/month per agency for active client rooms, because the value repeats with every delivery while the client gets free reviewer access.",
+  "constraints": "Never store live secrets, automatic fixture redaction, repository OAuth least privilege, export/delete controls, and legal clarity that acknowledgement is not a substitute for a contract.",
+  "est_build_effort": "M",
+  "scale": "venture",
+  "why_distinct": "It turns handoff into a verified client-facing artifact rather than trying to replace a docs platform or API client.",
+  "confidence": 4,
+  "state": "RESEARCHED"
+}
