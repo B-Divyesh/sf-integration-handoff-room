@@ -55,6 +55,7 @@ Image:               sociobotregistry.azurecr.io/sf-integration-handoff-room:ea6
 Container revision:  sf-integration-handoff-room--0000005
 Live health:         200, build_sha ea65987b5b8ddec6e37713e558c7f47e01006a1b
 Live billing config: billing_registered false, checkout_url null
+Live billing page:   zero hosted-checkout links; the unavailable status is visible
 Live /api/rooms:     401 with WWW-Authenticate: Bearer
 Live unknown route:  404
 Live limiter:        55 parallel fetches from one forwarded IP -> 42 x 200, 13 x 429; 429 included Retry-After: 1
