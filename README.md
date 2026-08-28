@@ -1,60 +1,50 @@
 # Integration Handoff Room
 
-Integration Handoff Room gives small software agencies one client-ready place to review a safe API example, record decisions and ownership, and preserve a named handover acknowledgement.
+Integration Handoff Room gives small software agencies one client-ready place to review a sanitized API fixture, answer questions, and preserve a named acknowledgement.
 
-M1 ships a complete, account-free sample room. Open `/demo` (or `/?demo=1`), complete the payment-status checklist, record a named acknowledgement, and download the handover JSON. The sample is isolated in `demo:` browser storage and does not call a live API.
+The public `/demo` is an isolated sample. Signed-in agency members can import one public GitHub JSON fixture, review automatic redaction, save a room, create a private client link, answer questions, and export the record. Client reviewers can ask questions and acknowledge one room revision without an account. Studio costs $79 USD per agency each month through Sociobot hosted checkout.
 
-The product plan is in [.factory/plan.md](.factory/plan.md), the researched opportunity is in [.factory/brief.json](.factory/brief.json), and the orbital protocol atlas design system is in [.factory/design.md](.factory/design.md).
+The researched opportunity is in [.factory/brief.json](.factory/brief.json), the delivery plan is in [.factory/plan.md](.factory/plan.md), and the product-specific visual system is in [.factory/design.md](.factory/design.md).
 
 ## Who it is for
 
-Small software agencies and fractional engineering teams that hand API integrations to clients. Client reviewers get a focused review space instead of a pile of docs, collection links, and follow-up email.
+Small software agencies and fractional engineering teams handing API integrations to clients.
 
-## Try the sample
+## Run locally
+
+Prerequisites are Node.js 22+, npm, and the stable Rust toolchain.
 
 ```sh
-npm install
-npm run dev
+npm ci
+npm run build
+STATIC_DIR="$PWD/dist" DATA_DIR="$(mktemp -d)" PORT=8080 npm run dev:api
 ```
 
-Open [http://localhost:5173/demo](http://localhost:5173/demo). The seeded room
-uses fictional payment-status data. **Reset demo** returns it to a clean state.
-See [.factory/demo.md](.factory/demo.md) for the sandbox boundary.
+Open `http://localhost:8080/demo` for the isolated sample. Open `/rooms` for the real workflow. Entra redirects back to `/auth/callback`; localhost and production callback URLs must be registered on the shared Sociobot SPA application.
 
-## Development
+The demo uses only `demo:integration-handoff-room:sample-v1` in local storage. Reset demo restores the bundled fictional payment-status room. See [.factory/demo.md](.factory/demo.md).
 
-Prerequisites: Node.js 22+, npm, and the Rust stable toolchain.
+## Verify
 
 ```sh
-npm install
-npm run dev                 # web app at http://localhost:5173
-npm run dev:api             # container service at http://localhost:8080
 npm run check
 npm test
-npm run build               # creates dist/
-npm run test:e2e            # claim tests, keyboard flow, Axe, mobile check
+npm run test:e2e
 npm run test:api
+npm run build
 npm run build:api
 ```
 
-Each claim in [.factory/claims.json](.factory/claims.json) maps to exactly one
-fresh-context Playwright test tagged `@claim:<id>`. Run an individual claim
-with `npm run test:e2e -- --grep @claim:demo-handover-export`.
+Every visitor-visible product promise is listed in [.factory/claims.json](.factory/claims.json) with its exact isolated test command. Playwright is pinned to 1.58.2.
 
-## Deployment
+## Runtime and deployment
 
-The factory deploys one non-root Container App. The multi-stage `Dockerfile`
-builds the Vite app into `dist/`; Axum serves it, its deep links, `/health`, and
-`/ready` on `PORT` (default `8080`). `BUILD_SHA` and `STATIC_DIR` are optional
-overrides; no configuration is required to start the container. The Dockerfile
-accepts `BUILD_SHA`, `GIT_SHA`, and `SOURCE_COMMIT` without relying on `.git`.
+The multi-stage `Dockerfile` builds Vite and the Rust service. The non-root container serves the site and API on `PORT` (default 8080), stores SQLite data under `/data`, and reports its build argument from `/health`. The service starts with only `PORT`; Entra tenant values use the shared Sociobot defaults and remain overrideable.
 
-M2 will add Entra sign-in, PostgreSQL, redaction jobs, repository connection,
-Sociobot/Dodo Studio billing, and API rate limits. Those production services do
-not exist in M1, so the sample does not pretend to use them.
+All routes except health checks have per-client token-bucket limits. Reads allow 20 requests per second with a burst of 40. Writes allow 5 requests per second with a burst of 10. Rejected requests return 429 and `Retry-After: 1`.
+
+The factory deploys the container. Do not run infrastructure, DNS, or billing-provider changes from this repository.
 
 ## Privacy and licensing
 
-M1 uses no third-party analytics, CDNs, embedded payment providers, or live API
-requests. It never asks for a real credential. The project is released under
-the [MIT License](LICENSE).
+The sample sends no fixture or review data. Real rooms store only the sanitized fixture and room record. Microsoft Entra handles agency sign-in, and Sociobot hosts checkout. The project is released under the [MIT License](LICENSE).

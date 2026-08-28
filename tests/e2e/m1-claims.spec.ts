@@ -71,6 +71,75 @@ test("@claim:demo-isolated demo changes stay in a separate browser storage names
   expect(requests.every((requestUrl) => new URL(requestUrl).origin === new URL(page.url()).origin)).toBe(true);
 });
 
+test("@claim:demo-data-private demo interactions send no fixture or review data", async ({ page, context }) => {
+  const sent: Array<{ method: string; url: string; body: string | null }> = [];
+  page.on("request", (request) => sent.push({ method: request.method(), url: request.url(), body: request.postData() }));
+  await page.goto("/demo");
+  await completeSampleReview(page, "Privacy Reviewer");
+  expect(sent.every((request) => request.method === "GET" && request.body === null)).toBe(true);
+  expect(sent.every((request) => new URL(request.url).origin === new URL(page.url()).origin)).toBe(true);
+  expect(await context.cookies()).toEqual([]);
+  const stores = await page.evaluate(async () => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage), indexedDb: "databases" in indexedDB ? (await indexedDB.databases()).map((database) => database.name) : [] }));
+  expect(stores.local).toEqual(["demo:integration-handoff-room:sample-v1"]);
+  expect(stores.session).toEqual([]);
+  expect(stores.indexedDb).toEqual([]);
+});
+
+test("@claim:fixture-sanitized prepared sample contains no secret-like values", async ({ page }) => {
+  await page.goto("/demo");
+  const payload = await page.locator(".payload").textContent();
+  expect(payload).not.toMatch(/bearer\s+\S+|basic\s+\S+|ghp_|github_pat_|sk-[a-z0-9]|api[_-]?key|password|private key|eyJ[a-zA-Z0-9_-]+\./i);
+  await expect(page.getByText("No secret-like values found in this prepared sample.")).toBeVisible();
+});
+
+test("@claim:studio-hosted-checkout Studio uses Sociobot hosted checkout", async ({ page }) => {
+  await page.goto("/settings/billing");
+  await expect(page.getByRole("link", { name: "Open hosted checkout" })).toHaveAttribute("href", "https://api.sociobot.in/api/v1/products/integration-handoff-room/checkout");
+  await expect(page.getByText("$79 USD per agency each month")).toBeVisible();
+});
+
+test("@claim:agency-room-browser the real room browser flow imports, redacts, saves, and reloads", async ({ page }) => {
+  const room = { id: "room-1", title: "Payment handoff", client_name: "Northstar", repository: "atlas/payments", release_ref: "v1.2.0", revision: 1, fixture: { authorization: "[REDACTED]", status: "paid" }, redaction_findings: ["Removed a secret-like value at $.authorization."], decisions: [{ text: "Retry stops after three checks.", owner: "Dara Singh", version: 1 }], checklist: [], questions: [], acknowledgement: null };
+  await page.route("**/api/fixtures/import", async (route) => route.fulfill({ json: { repository: "atlas/payments", release_ref: "v1.2.0", path: "fixtures/payment.json", fixture: room.fixture, findings: room.redaction_findings } }));
+  await page.route("**/api/rooms", async (route) => route.fulfill({ status: 201, json: room }));
+  await page.route("**/api/rooms/room-1", async (route) => route.fulfill({ json: room }));
+  await page.goto("/rooms/new");
+  await page.getByLabel("Owner", { exact: true }).fill("atlas");
+  await page.getByLabel("Repository").fill("payments");
+  await page.getByLabel("Release ref").fill("v1.2.0");
+  await page.getByLabel("JSON file path").fill("fixtures/payment.json");
+  await page.getByRole("button", { name: "Import and redact fixture" }).click();
+  await expect(page.getByTestId("import-preview")).toContainText("[REDACTED]");
+  await page.getByLabel("Room title").fill("Payment handoff");
+  await page.getByLabel("Client name").fill("Northstar");
+  await page.getByLabel("Decision", { exact: true }).fill("Retry stops after three checks.");
+  await page.getByLabel("Decision owner").fill("Dara Singh");
+  await page.getByLabel(/I reviewed the sanitized fixture/).check();
+  await page.getByRole("button", { name: "Create client room" }).click();
+  await expect(page).toHaveURL(/\/rooms\/room-1$/);
+  await expect(page.getByRole("heading", { name: "Payment handoff" })).toBeVisible();
+  await expect(page.getByText("Removed a secret-like value at $.authorization.")).toBeVisible();
+});
+
+test("@claim:client-review-workflow a client can ask a question and acknowledge the scoped revision", async ({ page }) => {
+  let questions: Array<Record<string, unknown>> = [];
+  let acknowledgement: Record<string, unknown> | null = null;
+  const response = () => ({ id: "room-1", title: "Payment handoff", client_name: "Northstar", repository: "atlas/payments", release_ref: "v1.2.0", revision: 1, fixture: { status: "paid" }, decisions: [{ text: "Retry stops after three checks.", owner: "Dara Singh", version: 1 }], checklist: [{ id: "fixture", label: "I reviewed the fixture." }, { id: "questions", label: "My questions are recorded." }], questions, acknowledgement });
+  await page.route("**/api/review/private-token", async (route) => route.fulfill({ json: response() }));
+  await page.route("**/api/review/private-token/questions", async (route) => { questions = [{ id: "q1", author_name: "Morgan", body: "When does retry stop?", answer: null }]; await route.fulfill({ status: 201, json: questions[0] }); });
+  await page.route("**/api/review/private-token/acknowledgements", async (route) => { acknowledgement = { reviewer_name: "Morgan", revision: 1 }; await route.fulfill({ status: 201, json: acknowledgement }); });
+  await page.goto("/review/private-token");
+  await page.getByLabel("Your name").fill("Morgan");
+  await page.getByRole("textbox", { name: "Question", exact: true }).fill("When does retry stop?");
+  await page.getByRole("button", { name: "Save question" }).click();
+  await expect(page.getByText("When does retry stop?", { exact: false })).toBeVisible();
+  for (const checkbox of await page.locator("[data-real-check]").all()) await checkbox.check();
+  await page.getByLabel("Reviewer name").fill("Morgan");
+  await page.getByLabel(/I reviewed this revision/).check();
+  await page.getByRole("button", { name: "Record acknowledgement" }).click();
+  await expect(page.getByText("Acknowledged by Morgan")).toBeVisible();
+});
+
 test("the acknowledgement and export work with keyboard input only", async ({ page }) => {
   await page.goto("/demo");
   const checkboxes = page.getByRole("checkbox");
@@ -89,12 +158,18 @@ test("the acknowledgement and export work with keyboard input only", async ({ pa
   await expect(page.getByRole("button", { name: "Download handover JSON" })).toBeFocused();
 });
 
-test("the demo has no serious or critical axe violations", async ({ page }) => {
-  for (const route of ["/", "/demo", "/privacy", "/terms", "/unknown-coordinate"]) {
-    await page.goto(route);
-    const results = await new AxeBuilder({ page }).analyze();
-    const seriousOrCritical = results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
-    expect(seriousOrCritical, `${route} has no serious or critical axe violations`).toEqual([]);
+test("public pages have no serious or critical axe violations in both themes", async ({ page }) => {
+  for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    for (const route of ["/", "/demo", "/privacy", "/terms", "/rooms", "/settings/billing", "/unknown-coordinate"]) {
+      await page.goto(route);
+      for (const theme of ["night", "day"]) {
+        if (theme === "day") await page.getByRole("button", { name: "Day chart" }).click();
+        const results = await new AxeBuilder({ page }).analyze();
+        const seriousOrCritical = results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
+        expect(seriousOrCritical, `${route} ${theme} ${viewport.width}px`).toEqual([]);
+      }
+    }
   }
 });
 
@@ -104,13 +179,53 @@ test("the demo stays usable at a 390px viewport", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Payment status — paid response" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const undersized = await page.locator("a, button").evaluateAll((controls) => controls.filter((control) => {
+    const box = control.getBoundingClientRect();
+    return box.width > 0 && box.height > 0 && (box.width < 44 || box.height < 44);
+  }).map((control) => `${control.tagName}:${control.textContent?.trim()}:${control.getBoundingClientRect().width}x${control.getBoundingClientRect().height}`));
+  expect(undersized).toEqual([]);
+});
+
+test("the 390px landing first screen includes the action and three facts", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Try it with sample data" })).toBeVisible();
+  const facts = page.locator(".plain-facts");
+  await expect(facts).toBeVisible();
+  expect((await facts.boundingBox())?.y ?? 900).toBeLessThan(844);
+});
+
+test("loaded sample remains usable when the browser goes offline", async ({ page, context }) => {
+  await page.goto("/demo");
+  await context.setOffline(true);
+  await page.locator("[data-check-id]").first().check();
+  await expect(page.locator("[data-check-id]").first()).toBeChecked();
+  await expect(page.getByText("1/3 required")).toBeVisible();
+});
+
+test("reduced motion and 200 percent reflow keep the interface usable", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 640, height: 800 });
+  await page.goto("/demo");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const duration = await page.getByRole("button", { name: "Reset demo" }).evaluate((button) => getComputedStyle(button).transitionDuration);
+  expect(Number.parseFloat(duration)).toBeLessThanOrEqual(0.00001);
+});
+
+test("the real create-room page reflows at 390px without serious Axe findings", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/rooms/new");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical")).toEqual([]);
 });
 
 test("public routes have their own title, heading, and no console errors", async ({ page }) => {
   const routes = [
     ["/", "Integration Handoff Room — client API handoffs", "Review an API handoff together."],
     ["/privacy", "Privacy — Integration Handoff Room", "Your sample stays separate."],
-    ["/terms", "Terms — Integration Handoff Room", "The sample records a review, not a contract."],
+    ["/terms", "Terms — Integration Handoff Room", "A review is not a contract."],
     ["/unknown-coordinate", "Page not found — Integration Handoff Room", "This coordinate is unknown."]
   ] as const;
   const consoleErrors: string[] = [];

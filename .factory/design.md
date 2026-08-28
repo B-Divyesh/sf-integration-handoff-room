@@ -22,10 +22,10 @@ The source of truth is [`src/styles/tokens.css`](../src/styles/tokens.css). Valu
 | `--color-ink` | `#F7F4E9` | `#122A3A` | Primary text |
 | `--color-muted` | `#BED0D5` | `#4D6572` | Secondary text; never below 4.5:1 for body copy |
 | `--color-line` | `#416174` | `#AABCC4` | Dividers and inactive orbital paths |
-| `--color-signal` | `#F3B52A` | `#8A5700` | Primary action and current orbit |
+| `--color-signal` | `#F3B52A` | `#704500` | Primary action and current orbit |
 | `--color-signal-ink` | `#07131F` | `#FFFDF7` | Text on the signal color |
 | `--color-aqua` | `#63D9D2` | `#006D73` | Fixture/reference marker |
-| `--color-success` | `#9BD683` | `#28733E` | Complete state, paired with icon/text |
+| `--color-success` | `#9BD683` | `#145C2D` | Complete state, paired with icon/text |
 | `--color-warning` | `#F0BA54` | `#935D00` | Needs attention, paired with icon/text |
 | `--color-danger` | `#FF9A86` | `#B43D37` | Error/destructive state, paired with icon/text |
 

@@ -1,4 +1,4 @@
-export type AppPage = "/" | "/demo" | "/privacy" | "/terms" | "/404";
+export type AppPage = "/" | "/demo" | "/privacy" | "/terms" | "/rooms" | "/rooms/new" | "/room" | "/review" | "/settings/billing" | "/auth/callback" | "/404";
 
 export interface RouteMetadata {
   title: string;
@@ -27,6 +27,36 @@ const routeMetadata: Record<AppPage, RouteMetadata> = {
     description: "Read the plain-language terms for the Integration Handoff Room sample and planned Studio service.",
     canonicalPath: "/terms"
   },
+  "/rooms": {
+    title: "Rooms — Integration Handoff Room",
+    description: "Create and manage private client API handoff rooms.",
+    canonicalPath: "/rooms"
+  },
+  "/rooms/new": {
+    title: "Create a room — Integration Handoff Room",
+    description: "Import and sanitize a GitHub fixture for a new client handoff room.",
+    canonicalPath: "/rooms/new"
+  },
+  "/room": {
+    title: "Agency room — Integration Handoff Room",
+    description: "Manage a private API handoff room, client questions, and acknowledgement.",
+    canonicalPath: "/rooms"
+  },
+  "/review": {
+    title: "Client review — Integration Handoff Room",
+    description: "Review one private API release fixture, ask questions, and acknowledge the revision.",
+    canonicalPath: "/review"
+  },
+  "/settings/billing": {
+    title: "Billing — Integration Handoff Room",
+    description: "Start or restore the Studio subscription through Sociobot hosted checkout.",
+    canonicalPath: "/settings/billing"
+  },
+  "/auth/callback": {
+    title: "Signing in — Integration Handoff Room",
+    description: "Complete Sociobot account sign-in for Integration Handoff Room.",
+    canonicalPath: "/auth/callback"
+  },
   "/404": {
     title: "Page not found — Integration Handoff Room",
     description: "The requested Integration Handoff Room coordinate could not be found.",
@@ -35,9 +65,12 @@ const routeMetadata: Record<AppPage, RouteMetadata> = {
 };
 
 export function pageForPath(pathname: string): AppPage {
-  if (pathname === "/" || pathname === "/demo" || pathname === "/privacy" || pathname === "/terms") {
+  if (pathname === "/" || pathname === "/demo" || pathname === "/privacy" || pathname === "/terms" || pathname === "/rooms" || pathname === "/rooms/new" || pathname === "/settings/billing" || pathname === "/auth/callback") {
     return pathname;
   }
+
+  if (/^\/rooms\/[^/]+$/.test(pathname)) return "/room";
+  if (/^\/review\/[^/]+$/.test(pathname)) return "/review";
 
   return "/404";
 }

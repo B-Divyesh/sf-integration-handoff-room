@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:api": "cargo test --manifest-path server/Cargo.toml",
-    "test:all": "npm run check && npm test && npm run test:api",
+    "test:all": "npm run check && npm test && npm run test:api && npm run test:e2e && npm run build && npm run build:api",
     "build": "vite build",
     "build:api": "cargo build --release --manifest-path server/Cargo.toml",
     "preview": "vite preview"
@@ -26,5 +26,8 @@
     "typescript": "^5.8.3",
     "vite": "^7.1.7",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@azure/msal-browser": "^4.25.0"
   }
 }

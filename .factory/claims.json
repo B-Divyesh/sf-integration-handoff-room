@@ -26,5 +26,61 @@
     "where": "Demo banner and privacy page",
     "test": "npm run test:e2e -- --grep @claim:demo-isolated",
     "sandbox": "fresh browser context; mutate and reset demo; assert storage keys use demo: prefix and request log has no cross-origin requests"
+  },
+  {
+    "id": "demo-data-private",
+    "claim": "The demo sends no fixture, checklist, or acknowledgement data and uses no cookies, analytics, third-party fonts, or third-party scripts.",
+    "where": "Privacy page and landing facts",
+    "test": "npm run test:e2e -- --grep @claim:demo-data-private",
+    "sandbox": "fresh browser context; complete acknowledgement; assert every request is a bodyless same-origin GET and cookies, sessionStorage, and IndexedDB remain empty"
+  },
+  {
+    "id": "fixture-sanitized",
+    "claim": "The prepared sample contains no secret-like values.",
+    "where": "Demo fixture redaction report",
+    "test": "npm run test:e2e -- --grep @claim:fixture-sanitized",
+    "sandbox": "fresh demo; scan the complete displayed fixture for credential, token, password, private-key, and JWT patterns"
+  },
+  {
+    "id": "fixture-redaction-blocks-secret",
+    "claim": "The server removes common secret-like values before a real fixture can be saved.",
+    "where": "Create-room import and privacy page",
+    "test": "npm run test:api -- claim_fixture_redaction_blocks_secret_corpus",
+    "sandbox": "in-memory database; nested secret corpus plus safe control value; assert every secret is removed and the control is preserved"
+  },
+  {
+    "id": "agency-room-persisted",
+    "claim": "A signed-in agency can save and reload a client handoff room with a scoped private review link.",
+    "where": "Rooms, create-room, room, and review pages",
+    "test": "npm run test:api -- real_room_persists_is_tenant_scoped_and_has_private_review",
+    "sandbox": "in-memory database and test identity; create agency and room, reload it, deny another tenant, and open only with the scoped review token"
+  },
+  {
+    "id": "agency-room-browser",
+    "claim": "A signed-in agency member can import a GitHub JSON fixture, review redaction, name a decision owner, and create a client room.",
+    "where": "Create-room page and README",
+    "test": "npm run test:e2e -- --grep @claim:agency-room-browser",
+    "sandbox": "test-only browser identity and intercepted API; complete the full create-room form and assert the saved room reloads with sanitized content"
+  },
+  {
+    "id": "client-review-workflow",
+    "claim": "A client reviewer can ask a question and acknowledge one room revision without an agency account.",
+    "where": "Private review page and README",
+    "test": "npm run test:e2e -- --grep @claim:client-review-workflow",
+    "sandbox": "fresh public review route with scoped fixture; submit a question, complete the checklist, acknowledge, and assert the revision receipt"
+  },
+  {
+    "id": "api-rate-limit",
+    "claim": "Product reads allow 20 requests per second with a burst of 40 for each forwarded client IP.",
+    "where": "Operations contract and handoff",
+    "test": "npm run test:api -- claim_api_rate_limit_uses_forwarded_ip_and_retry_after",
+    "sandbox": "fresh limiter; send 45 requests from one first-hop X-Forwarded-For address; assert 429 and Retry-After"
+  },
+  {
+    "id": "studio-hosted-checkout",
+    "claim": "Studio costs $79 USD per agency each month and checkout is hosted by Sociobot.",
+    "where": "Landing pricing, billing, and terms pages",
+    "test": "npm run test:e2e -- --grep @claim:studio-hosted-checkout",
+    "sandbox": "fresh billing page; assert the exact price and Sociobot product checkout URL"
   }
 ]

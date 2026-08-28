@@ -15,7 +15,7 @@ The room contains the fictional **Payment status release** for Northstar Market:
 - Three required review steps.
 - A blank acknowledgement ready for a client reviewer name.
 
-No source repository, client record, credential, live API request, or production account is involved.
+No source repository, client record, credential, or production account is involved. The page loads only its same-origin shell assets; demo interactions send no fixture or review data.
 
 ## Storage and reset
 
@@ -34,8 +34,10 @@ npm run test:e2e -- --grep @claim:demo-sample-room
 npm run test:e2e -- --grep @claim:demo-acknowledgement
 npm run test:e2e -- --grep @claim:demo-handover-export
 npm run test:e2e -- --grep @claim:demo-isolated
+npm run test:e2e -- --grep @claim:demo-data-private
+npm run test:e2e -- --grep @claim:fixture-sanitized
 ```
 
-The isolation test records every page request and fails if any request leaves
-the page origin. It also verifies that every local storage key begins with
-`demo:` after a mutation and reset.
+The privacy tests record every request and body through acknowledgement. They
+also inspect cookies, local storage, session storage, and IndexedDB. The sample
+flow uses only bodyless same-origin GETs and one `demo:` local-storage key.

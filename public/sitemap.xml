@@ -2,6 +2,9 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://integration-handoff-room.sociobot.in/</loc></url>
   <url><loc>https://integration-handoff-room.sociobot.in/demo</loc></url>
+  <url><loc>https://integration-handoff-room.sociobot.in/rooms</loc></url>
+  <url><loc>https://integration-handoff-room.sociobot.in/rooms/new</loc></url>
+  <url><loc>https://integration-handoff-room.sociobot.in/settings/billing</loc></url>
   <url><loc>https://integration-handoff-room.sociobot.in/privacy</loc></url>
   <url><loc>https://integration-handoff-room.sociobot.in/terms</loc></url>
 </urlset>

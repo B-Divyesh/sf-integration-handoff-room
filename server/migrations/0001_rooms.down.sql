@@ -1,0 +1,8 @@
+DROP TABLE IF EXISTS acknowledgements;
+DROP TABLE IF EXISTS questions;
+DROP TABLE IF EXISTS review_invites;
+DROP INDEX IF EXISTS rooms_agency_idx;
+DROP TABLE IF EXISTS rooms;
+DROP TABLE IF EXISTS memberships;
+DROP TABLE IF EXISTS agencies;
+DROP TABLE IF EXISTS users;

@@ -1,5 +1,7 @@
 # The image intentionally builds from source only; it never expects .git.
 FROM node:22-bookworm-slim AS web-build
+ARG BUILD_SHA=dev
+ENV VITE_BUILD_SHA=${BUILD_SHA}
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -8,7 +10,7 @@ COPY src ./src
 COPY public ./public
 RUN npm run build
 
-FROM rust:1.88-slim-bookworm AS api-build
+FROM rust:1-slim AS api-build
 WORKDIR /app
 COPY server ./server
 RUN cargo build --release --manifest-path server/Cargo.toml
@@ -18,9 +20,10 @@ ARG BUILD_SHA=dev
 ARG GIT_SHA=dev
 ARG SOURCE_COMMIT=dev
 ENV BUILD_SHA=${BUILD_SHA}
-RUN groupadd --system app && useradd --system --gid app --no-create-home app
+RUN groupadd --system app && useradd --system --gid app --no-create-home app && mkdir -p /data && chown app:app /data
 COPY --from=web-build /app/dist /app/dist
 COPY --from=api-build /app/server/target/release/integration-handoff-room-api /usr/local/bin/integration-handoff-room-api
 USER app
+ENV DATA_DIR=/data
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/integration-handoff-room-api"]
