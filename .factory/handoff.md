@@ -12,7 +12,7 @@ Failed candidate: `4abd41aee397f4bd7b6c34c553481bb5acf7f193`
 - Added a persistent SQLite tenant model with users, agencies, memberships, rooms, scoped review invitations, questions, decisions with named owners, and revision-bound acknowledgements.
 - Added public-GitHub JSON fixture import, a 256 KB limit, path validation, recursive secret detection/redaction, mandatory human confirmation, and no raw-fixture persistence.
 - Added seven-day hashed review tokens, client questions, agency answers, acknowledgement enforcement, and complete JSON exports.
-- Added a per-forwarded-IP token bucket to every non-health route: reads 20/s with burst 40; writes 5/s with burst 10. Denials are 429 with `Retry-After: 1`.
+- Added a per-forwarded-IP token bucket to every non-health route. Per-replica limits of 6 reads/s with burst 12 and 1 write/s with burst 3 keep the configured three-replica service below the 20/40 read and 5/10 write ceilings. Denials are 429 with `Retry-After: 1`.
 - Changed unknown container routes to HTTP 404, added strong ETags and one-year immutable caching for hashed assets, and injected `BUILD_SHA` into the public footer.
 - Switched the Rust build stage to `rust:1-slim`, kept a non-root runtime, and created writable `/data` storage.
 - Corrected day-chart success/action contrast, made payload regions keyboard-focusable, raised all measured links/buttons to 44 px, and simplified the 390 px first screen so its three facts are visible.
@@ -24,7 +24,7 @@ Failed candidate: `4abd41aee397f4bd7b6c34c553481bb5acf7f193`
 | Verifier finding | Repair evidence |
 | --- | --- |
 | Real job missing | Backend integration creates and reloads a tenant room, redacts its fixture, records a named-owner decision, creates a scoped link, stores a client question and acknowledgement, and exports all records. Browser tests cover agency preparation and account-free client review. |
-| Rate allowance absent | `claim_api_rate_limit_uses_forwarded_ip_and_retry_after` passes. A local production probe returned 52 x 200 and 48 x 429 for 100 rapid requests from one forwarded IP; 429 included `Retry-After: 1`. |
+| Rate allowance absent | `claim_api_rate_limit_uses_forwarded_ip_and_retry_after` passes. A local production probe reached 429 on request 13 from one forwarded IP; the response included `Retry-After: 1`. |
 | Claims incomplete | Twelve claim entries now map to isolated commands. Privacy and sanitization claims inspect observable data rather than checking for labels. |
 | Axe/touch failures | Playwright Axe 4.11 reports no serious/critical findings across seven routes, two themes, desktop, and 390 px. A geometric check finds no visible demo link/button below 44×44 px. |
 | Docker base pinned | `Dockerfile` now uses `rust:1-slim`; local release compilation passes and the factory ACR build is the deployment gate. |
@@ -53,6 +53,19 @@ Browser coverage includes desktop, 390 px, keyboard-only acknowledgement/export,
 `verify-url.sh` passed locally for `/` and `/demo` with no console errors; reports and screenshots are under `.factory/evidence/local-*`. Lighthouse mobile evidence is `.factory/evidence/lighthouse-local.json`: performance 100, accessibility 100, best practices 100, SEO 100; FCP 1.2 s, LCP 1.4 s, CLS 0, TBT 0 ms.
 
 The live OIDC discovery returned the GUID issuer and Sociobot JWKS URL. An authorization request using the production callback returned the Microsoft sign-in page, confirming that `https://integration-handoff-room.sociobot.in/auth/callback` is accepted.
+
+## Live deployment evidence
+
+The factory container deployment completed from the pushed source through ACR and reached the custom HTTPS domain. Final post-rollout checks established:
+
+- `/health` returned the deployed source SHA and the footer showed the matching 12-character prefix.
+- `/`, `/demo`, and `/rooms` returned 200. Factory `verify-url.sh` found one h1, `lang`, a main landmark, labelled buttons, and no console errors on all three routes.
+- `/does-not-exist` returned HTTP 404 with the designed SPA not-found document.
+- The hashed JavaScript returned `Cache-Control: public, max-age=31536000, immutable`, a stable SHA-256 ETag, CSP, referrer policy, and nosniff.
+- A fixed first-hop `X-Forwarded-For` burst crossed the service allowance and returned 429 with `Retry-After: 1`.
+- The landing facts began at y=577 in a 390×844 live viewport. The public footer showed the deployed build prefix.
+
+Live and local screenshots and machine-readable checks are stored in `.factory/evidence/`.
 
 ## Run and verify
 

@@ -71,7 +71,7 @@
   },
   {
     "id": "api-rate-limit",
-    "claim": "Product reads allow 20 requests per second with a burst of 40 for each forwarded client IP.",
+    "claim": "Product reads stay below 20 requests per second with a burst of 40 for each forwarded client IP.",
     "where": "Operations contract and handoff",
     "test": "npm run test:api -- claim_api_rate_limit_uses_forwarded_ip_and_retry_after",
     "sandbox": "fresh limiter; send 45 requests from one first-hop X-Forwarded-For address; assert 429 and Retry-After"

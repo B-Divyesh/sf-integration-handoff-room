@@ -41,7 +41,7 @@ Every visitor-visible product promise is listed in [.factory/claims.json](.facto
 
 The multi-stage `Dockerfile` builds Vite and the Rust service. The non-root container serves the site and API on `PORT` (default 8080), stores SQLite data under `/data`, and reports its build argument from `/health`. The service starts with only `PORT`; Entra tenant values use the shared Sociobot defaults and remain overrideable.
 
-All routes except health checks have per-client token-bucket limits. Reads allow 20 requests per second with a burst of 40. Writes allow 5 requests per second with a burst of 10. Rejected requests return 429 and `Retry-After: 1`.
+All routes except health checks have per-client token-bucket limits. The configured three-replica service stays below 20 reads per second with a burst of 40. Writes stay below 5 per second with a burst of 10. Rejected requests return 429 and `Retry-After: 1`.
 
 The factory deploys the container. Do not run infrastructure, DNS, or billing-provider changes from this repository.
 

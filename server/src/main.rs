@@ -292,7 +292,9 @@ async fn rate_limit(State(state): State<AppState>, request: Request<Body>, next:
         .filter(|v| !v.is_empty())
         .unwrap_or("direct");
     let write = request.method() != Method::GET && request.method() != Method::HEAD;
-    let (rate, burst) = if write { (5.0, 10.0) } else { (20.0, 40.0) };
+    // The factory may run three replicas. Per-replica ceilings keep the
+    // combined service below the published 20/s, burst-40 client allowance.
+    let (rate, burst) = if write { (1.0, 3.0) } else { (6.0, 12.0) };
     let key = format!("{ip}:{}", if write { "write" } else { "read" });
     let allowed = {
         let mut buckets = match state.limiter.lock() {
@@ -1241,7 +1243,8 @@ mod tests {
         let mut b = Request::builder()
             .method(method)
             .uri(uri)
-            .header(header::CONTENT_TYPE, "application/json");
+            .header(header::CONTENT_TYPE, "application/json")
+            .header("x-forwarded-for", token.unwrap_or("review-client"));
         if let Some(token) = token {
             b = b.header(header::AUTHORIZATION, format!("Bearer {token}"))
         };
