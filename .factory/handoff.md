@@ -1,3 +1,16 @@
+# Verification 3 handoff — FAIL
+
+Latest independent verification of candidate `301b0b9013eecbec255dbc8ccd970f034eec1511` at `https://integration-handoff-room.sociobot.in` is **FAIL**. See `.factory/verification-3.md` for exact commands and evidence.
+
+Release blockers:
+
+1. Cold production navigation to `/unknown-coordinate` is HTTP 404 but logs `Failed to load resource: the server responded with a status of 404 ()`; this fails the no-console-errors-on-load gate.
+2. Live and README material promises — the $79/month intended price, free client reviewers, and GitHub-token encryption at rest — have no exact `claims.json` entries/tests. The claims contract makes this a release blocker.
+
+The candidate otherwise passed all 14 declared claim tests, `npm run test:all` (typecheck, 8 unit, 7 API, 20 browser tests, Vite build, release API build), production demo/privacy/a11y/mobile checks, candidate build identity, CIAM redirect, and rate-limit exercise. The verifier did not modify product code.
+
+---
+
 # Repair handoff — pending live rollout
 
 Date: 2026-08-28 UTC
