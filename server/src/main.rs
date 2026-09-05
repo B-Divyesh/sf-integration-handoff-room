@@ -1349,12 +1349,21 @@ async fn billing_contract() -> BillingContract {
 }
 fn open_db(path: &FilePath) -> Result<Connection, Box<dyn std::error::Error>> {
     fs::create_dir_all(path)?;
-    let db = Connection::open(path.join("handoff-room.sqlite3"))?;
+    let database_path = path.join("handoff-room.sqlite3");
+    let db = Connection::open(&database_path)?;
     // Container Apps may overlap the retiring and starting revision briefly.
     // Wait for the previous single-replica process to release SQLite's file
     // lock instead of failing a durable-volume rollout at startup.
     db.busy_timeout(Duration::from_secs(60))?;
-    db.execute_batch(MIGRATION)?;
+    db.execute_batch("PRAGMA foreign_keys = ON;")?;
+    let initialized: i64 = db.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'agencies'",
+        [],
+        |row| row.get(0),
+    )?;
+    if initialized == 0 {
+        db.execute_batch(MIGRATION)?;
+    }
     Ok(db)
 }
 async fn shutdown() {
