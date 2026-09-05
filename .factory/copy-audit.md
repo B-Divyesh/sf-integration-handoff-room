@@ -24,7 +24,7 @@ Checked 2026-08-28. No landing sentence exceeds 22 words. The copy contains none
 | Its acknowledgement records a review; it is not a legal signature. | 11 | Pass |
 | Check Studio billing status. | 4 | Pass |
 | Studio includes agency rooms, private reviewers, GitHub fixture import, and exports. | 10 | Pass |
-| Client reviewers remain free. | 4 | Pass |
+| Client reviewers use a private room link without an account or subscription. | 12 | Pass |
 
 ## Terminology table
 

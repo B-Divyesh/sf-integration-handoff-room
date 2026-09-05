@@ -98,6 +98,25 @@ test("@claim:studio-hosted-checkout Studio never fakes checkout when Sociobot re
   await expect(page.getByRole("link", { name: "Open hosted checkout" })).toHaveCount(0);
 });
 
+test("@claim:studio-price Studio shows the registered $79 monthly plan and hosted Sociobot checkout", async ({ page }) => {
+  const checkoutUrl = "https://api.sociobot.in/api/v1/products/integration-handoff-room/checkout";
+  await page.route("**/api/config", async (route) => route.fulfill({
+    json: {
+      tenant_id: "35c6fe40-0ec0-46b6-98c6-213ad4de6650",
+      tenant_subdomain: "sociobotcustomers",
+      client_id: "25c704f4-465a-47af-80ab-2c489466b697",
+      authority: "https://sociobotcustomers.ciamlogin.com/35c6fe40-0ec0-46b6-98c6-213ad4de6650/",
+      build_sha: "test-build",
+      checkout_url: checkoutUrl,
+      billing_registered: true,
+      studio_price: "$79 USD per agency each month"
+    }
+  }));
+  await page.goto("/settings/billing");
+  await expect(page.getByText("Studio is $79 USD per agency each month when Sociobot registration is available.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open hosted checkout" })).toHaveAttribute("href", checkoutUrl);
+});
+
 test("@claim:agency-room-browser the real room browser flow imports only a selected GitHub repository, redacts, saves, and reloads", async ({ page }) => {
   const room = { id: "room-1", title: "Payment handoff", client_name: "Northstar", repository: "atlas/payments", release_ref: "v1.2.0", revision: 1, fixture: { authorization: "[REDACTED]", status: "paid" }, redaction_findings: ["Removed a secret-like value at $.authorization."], decisions: [{ text: "Retry stops after three checks.", owner: "Dara Singh", version: 1 }], checklist: [], questions: [], acknowledgement: null };
   await page.route("**/api/github/repositories", async (route) => route.fulfill({ json: { repositories: [{ connection_id: "connection-1", full_name: "atlas/payments", selected: true, private: true, github_login: "atlas" }] } }));
@@ -182,7 +201,7 @@ test("the acknowledgement and export work with keyboard input only", async ({ pa
 test("public pages have no serious or critical axe violations in both themes", async ({ page }) => {
   for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport);
-    for (const route of ["/", "/demo", "/privacy", "/terms", "/rooms", "/settings/billing", "/unknown-coordinate"]) {
+    for (const route of ["/", "/demo", "/privacy", "/terms", "/rooms", "/settings/billing"]) {
       await page.goto(route);
       for (const theme of ["night", "day"]) {
         if (theme === "day") await page.getByRole("button", { name: "Day chart" }).click();
@@ -192,6 +211,21 @@ test("public pages have no serious or critical axe violations in both themes", a
       }
     }
   }
+});
+
+test("the production server returns its designed 404 document", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  // Chromium emits a console diagnostic for every top-level HTTP 404, including
+  // a valid document. Page errors are the signal for a broken 404 experience.
+  const response = await page.goto("/unknown-coordinate");
+  expect(response?.status()).toBe(404);
+  await expect(page).toHaveTitle("Page not found — Integration Handoff Room");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("This coordinate is unknown.");
+  await expect(page.getByRole("link", { name: "Return to the release map" })).toHaveAttribute("href", "/");
+  const axe = await new AxeBuilder({ page }).analyze();
+  expect(axe.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical")).toEqual([]);
+  expect(pageErrors).toEqual([]);
 });
 
 test("the demo stays usable at a 390px viewport", async ({ page }) => {
@@ -246,8 +280,7 @@ test("public routes have their own title, heading, and no console errors", async
   const routes = [
     ["/", "Integration Handoff Room — client API handoffs", "Review an API handoff together."],
     ["/privacy", "Privacy — Integration Handoff Room", "Your sample stays separate."],
-    ["/terms", "Terms — Integration Handoff Room", "A review is not a contract."],
-    ["/unknown-coordinate", "Page not found — Integration Handoff Room", "This coordinate is unknown."]
+    ["/terms", "Terms — Integration Handoff Room", "A review is not a contract."]
   ] as const;
   const consoleErrors: string[] = [];
   page.on("console", (message) => {

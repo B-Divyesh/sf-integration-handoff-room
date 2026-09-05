@@ -96,5 +96,26 @@
     "where": "Data controls and privacy pages",
     "test": "npm run test:e2e -- --grep @claim:agency-deletion",
     "sandbox": "test identity; type DELETE; assert a DELETE API request and return to rooms"
+  },
+  {
+    "id": "studio-price",
+    "claim": "Studio is $79 USD per agency each month when Sociobot registration is available.",
+    "where": "Billing page, terms page, and README",
+    "test": "npm run test:e2e -- --grep @claim:studio-price",
+    "sandbox": "registered-product API fixture; open Billing; assert the exact monthly price and only the Sociobot hosted checkout link"
+  },
+  {
+    "id": "client-reviewers-free",
+    "claim": "Client reviewers use a scoped private room link without an account or subscription.",
+    "where": "Landing pricing, billing page, terms page, and README",
+    "test": "npm run test:api -- claim_client_reviewers_need_no_account_or_subscription",
+    "sandbox": "in-memory database with no subscription; create a scoped invite; open it and submit a question without Authorization"
+  },
+  {
+    "id": "github-tokens-encrypted-at-rest",
+    "claim": "GitHub OAuth tokens are encrypted before storage.",
+    "where": "Privacy page and README",
+    "test": "npm run test:api -- claim_github_tokens_are_encrypted_at_rest",
+    "sandbox": "temporary SQLite database; persist an OAuth token; assert the raw database has no plaintext token and the stored value decrypts with the key"
   }
 ]

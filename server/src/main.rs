@@ -1248,6 +1248,9 @@ fn browser_route(path: &str) -> bool {
 }
 async fn serve_web(State(state): State<AppState>, OriginalUri(uri): OriginalUri) -> Response {
     let request_path = uri.path();
+    if request_path.starts_with("/api/") {
+        return err(StatusCode::NOT_FOUND, "The requested API route was not found.");
+    }
     let relative = request_path.trim_start_matches('/');
     let candidate = state.static_dir.join(relative);
     let safe = !relative.is_empty() && !relative.contains("..") && candidate.is_file();
@@ -1261,21 +1264,31 @@ async fn serve_web(State(state): State<AppState>, OriginalUri(uri): OriginalUri)
                 "public, max-age=3600"
             },
         )
-    } else {
+    } else if browser_route(request_path) {
         (
             state.static_dir.join("index.html"),
-            if browser_route(request_path) {
-                StatusCode::OK
-            } else {
-                StatusCode::NOT_FOUND
-            },
+            StatusCode::OK,
+            "no-cache",
+        )
+    } else {
+        (
+            state.static_dir.join("404.html"),
+            StatusCode::NOT_FOUND,
             "no-cache",
         )
     };
-    let bytes = match tokio::fs::read(&path).await {
+    let mut bytes = match tokio::fs::read(&path).await {
         Ok(v) => v,
         Err(_) => return err(StatusCode::NOT_FOUND, "The requested page was not found."),
     };
+    if path.file_name().and_then(|name| name.to_str()) == Some("404.html") {
+        bytes = match String::from_utf8(bytes) {
+            Ok(html) => html
+                .replace("{{BUILD_SHA}}", &state.build_sha.chars().take(12).collect::<String>())
+                .into_bytes(),
+            Err(error) => error.into_bytes(),
+        };
+    }
     let mime = mime_guess::from_path(&path).first_or_octet_stream();
     let etag = format!("\"{:x}\"", Sha256::digest(&bytes));
     Response::builder()
@@ -1425,6 +1438,7 @@ mod tests {
         let root = env::temp_dir().join(format!("handoff-room-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("index.html"), "<main>shell</main>").unwrap();
+        fs::write(root.join("404.html"), "<main>designed missing page</main>").unwrap();
         let db = Connection::open_in_memory().unwrap();
         db.execute_batch(MIGRATION).unwrap();
         (
@@ -1508,6 +1522,75 @@ mod tests {
         let config: Value = serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap();
         assert_eq!(config["billing_registered"], false);
         assert!(config["checkout_url"].is_null());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn claim_client_reviewers_need_no_account_or_subscription() {
+        let (state, root) = state();
+        let router = app(state.clone());
+        let owner = "agency-owner";
+        assert_eq!(request(router.clone(), Method::POST, "/api/me/bootstrap", Some(owner), json!({"agency_name":"Northstar Studio"})).await.status(), StatusCode::CREATED);
+        let room = request(router.clone(), Method::POST, "/api/rooms", Some(owner), json!({"title":"Payment handoff","client_name":"Northstar Market","repository":"northstar/payments","release_ref":"v1.2.0","fixture":{"status":"paid"},"redaction_confirmed":true,"decisions":[{"text":"Retry stops after three checks.","owner":"Dara Singh"}]})).await;
+        assert_eq!(room.status(), StatusCode::CREATED);
+        let room: Value = serde_json::from_slice(&to_bytes(room.into_body(), usize::MAX).await.unwrap()).unwrap();
+        let room_id = room["id"].as_str().unwrap();
+        let invite = request(router.clone(), Method::POST, &format!("/api/rooms/{room_id}/invite"), Some(owner), json!({})).await;
+        assert_eq!(invite.status(), StatusCode::CREATED);
+        let invite: Value = serde_json::from_slice(&to_bytes(invite.into_body(), usize::MAX).await.unwrap()).unwrap();
+        let token = invite["review_url"].as_str().unwrap().rsplit('/').next().unwrap();
+
+        let review = router
+            .clone()
+            .oneshot(Request::get(format!("/api/review/{token}")).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(review.status(), StatusCode::OK);
+        let review: Value = serde_json::from_slice(&to_bytes(review.into_body(), usize::MAX).await.unwrap()).unwrap();
+        assert_eq!(review["title"], "Payment handoff");
+
+        let question = request(router, Method::POST, &format!("/api/review/{token}/questions"), None, json!({"author_name":"Morgan Chen","body":"When does retry stop?"})).await;
+        assert_eq!(question.status(), StatusCode::CREATED);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn claim_github_tokens_are_encrypted_at_rest() {
+        let root = env::temp_dir().join(format!("handoff-room-encryption-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let db_path = root.join("handoff-room.sqlite3");
+        let db = Connection::open(&db_path).unwrap();
+        db.execute_batch(MIGRATION).unwrap();
+        db.execute("INSERT INTO agencies(id,name) VALUES('agency-encryption','Encryption Studio')", []).unwrap();
+        let token = "github-oauth-token-that-must-not-be-stored-in-plaintext";
+        let key = [23; 32];
+        let ciphertext = encrypt_token(&key, token).unwrap();
+        db.execute("INSERT INTO github_connections(id,agency_id,github_login,access_token_ciphertext) VALUES('connection-encryption','agency-encryption','northstar',?1)", [&ciphertext]).unwrap();
+        let saved: String = db.query_row("SELECT access_token_ciphertext FROM github_connections WHERE id='connection-encryption'", [], |row| row.get(0)).unwrap();
+        assert_ne!(saved, token);
+        assert!(!saved.contains(token));
+        assert_eq!(decrypt_token(&key, &saved).unwrap(), token);
+        drop(db);
+        let database_bytes = fs::read(&db_path).unwrap();
+        assert!(!String::from_utf8_lossy(&database_bytes).contains(token));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn sqlite_room_state_and_generated_key_survive_restart() {
+        let root = env::temp_dir().join(format!("handoff-room-restart-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let (first_key, _) = github_token_key(&root).unwrap();
+        {
+            let db = open_db(&root).unwrap();
+            db.execute("INSERT INTO agencies(id,name) VALUES('agency-restart','Restart Studio')", []).unwrap();
+            db.execute("INSERT INTO rooms(id,agency_id,title,client_name,repository,release_ref,fixture_json,redaction_json,checklist_json,decisions_json) VALUES('room-restart','agency-restart','Restart handoff','Northstar','northstar/payments','v1','{}','[]','[]','[]')", []).unwrap();
+        }
+        let (second_key, _) = github_token_key(&root).unwrap();
+        let reopened = open_db(&root).unwrap();
+        let saved_title: String = reopened.query_row("SELECT title FROM rooms WHERE id='room-restart'", [], |row| row.get(0)).unwrap();
+        assert_eq!(saved_title, "Restart handoff");
+        assert_eq!(first_key, second_key);
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -1674,6 +1757,8 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
+        let unknown_body = String::from_utf8(to_bytes(unknown.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap();
+        assert!(unknown_body.contains("designed missing page"));
         let asset = router
             .oneshot(
                 Request::get("/assets/app-123.js")
